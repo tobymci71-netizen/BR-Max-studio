@@ -1,0 +1,14 @@
+Requirement of rizz app:
+
+We will have a start message like "Rizz app tells me to reply with" in the "Me" voice id
+The UI will have top bar,
+A image in the center of the screen,
+A text input at the bottom of the screen 
+after the starter message, the system should read aloud the text message which is in the chat bot.
+
+when the start message is read aloud the text input should be blurred, and after it is read aloud the text input should be unblurred.
+
+
+Here unlink Cantina we will not have multiple messages but only starter message, rizz bot reply message, and one image. Thats all.
+
+Add category Rizz app and campaign Rizz bot.

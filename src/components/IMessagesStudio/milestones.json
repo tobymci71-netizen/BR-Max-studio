@@ -1,0 +1,20 @@
+{
+  "completedMilestones": [
+    "Interactive preview player & controls",
+    "Message scripting with import + quick add",
+    "Light & dark theming options",
+    "iOS-inspired device chrome customization",
+    "Background video custamization",
+    "Export final video (Must be authenticated)",
+    "Voiceover",
+    "Queueing system for render jobs",
+    "Token System"
+  ],
+  "upcomingMilestones": [
+    "Payment Gateway (Enjoy it for free while in beta!)",
+    "Add your own watermark",
+    "Faster Video Generation",
+    "More message types (images, stickers, etc.)",
+    "Promotions templates"
+  ]
+}
