@@ -215,7 +215,6 @@ export default function SubscriptionPage() {
     );
   }
 
-  const nextBillingDate = new Date(subscription.currentPeriodEnd);
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "long",
