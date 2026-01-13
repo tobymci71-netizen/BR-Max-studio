@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from("system_settings")
-      .select("maintenance_mode, maintenance_message, admin_user_ids")
+      .select("maintenance_mode, maintenance_message, admin_user_ids, created_at")
       .single();
 
     if (error) {
@@ -22,6 +22,7 @@ export async function GET() {
       isMaintenance: data?.maintenance_mode ?? false,
       maintenanceMessage: data?.maintenance_message ?? "",
       adminUserIds: [] as string[],
+      systemCreatedAt: data?.created_at ?? null,
     };
     if(isDevelopment) {
       resp.adminUserIds = data.admin_user_ids ?? [];

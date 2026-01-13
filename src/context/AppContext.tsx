@@ -20,6 +20,8 @@ type AppContextType = {
 
   maintenance: MaintenanceState;
   refreshMaintenance: () => Promise<void>;
+
+  systemCreatedAt: string | null;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -31,12 +33,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adminUserIds: []
   });
 
+  const [systemCreatedAt, setSystemCreatedAt] = useState<string | null>(null);
+
   const fetchIsMaintenanceMode = async () => {
     try {
       const response = await fetch("/api/isMaintenance");
       if (response.ok) {
-        const { isMaintenance, maintenanceMessage, adminUserIds } = await response.json();
+        const { isMaintenance, maintenanceMessage, adminUserIds, systemCreatedAt } = await response.json();
         setMaintenance({ isMaintenance, maintenanceMessage, adminUserIds });
+        setSystemCreatedAt(systemCreatedAt);
       }
     } catch (err) {
       console.error("Failed to fetch maintenance status:", err);
@@ -55,6 +60,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     maintenance,
     refreshMaintenance: fetchIsMaintenanceMode,
+
+    systemCreatedAt,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
