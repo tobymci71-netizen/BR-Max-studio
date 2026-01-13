@@ -33,6 +33,7 @@ export async function GET() {
       .from("subscriptions")
       .select("id")
       .eq("user_id", userId)
+      .eq("status", "active")
       .limit(1)
       .maybeSingle();
 
