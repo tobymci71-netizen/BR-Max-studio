@@ -6,11 +6,6 @@ import { addTokenTransaction } from "@/lib/tokenTransactions";
 import { sendSubscriptionEmail } from "@/lib/emailUtil";
 
 // Type extensions for Stripe objects
-interface StripeSubscriptionWithPeriod extends Stripe.Subscription {
-  current_period_start: number;
-  current_period_end: number;
-}
-
 interface StripeInvoiceWithSubscription extends Stripe.Invoice {
   subscription: string | Stripe.Subscription | null;
 }
@@ -18,6 +13,18 @@ interface StripeInvoiceWithSubscription extends Stripe.Invoice {
 interface TokenPackage {
   tokens: string;
   name: string;
+}
+
+// Extended subscription type to handle period dates in both locations
+interface SubscriptionWithPeriodDates {
+  current_period_start?: number;
+  current_period_end?: number;
+}
+
+interface SubscriptionItemWithPeriod {
+  current_period_start?: number;
+  current_period_end?: number;
+  [key: string]: unknown;
 }
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
         break;
 
       case "customer.subscription.updated":
-        await handleSubscriptionUpdated(event.data.object as StripeSubscriptionWithPeriod);
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
 
       case "customer.subscription.deleted":
@@ -134,19 +141,33 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   // Fetch subscription details from Stripe - DON'T use expand, get it directly
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as StripeSubscriptionWithPeriod;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+  // Extract period dates - handle both old and new Stripe billing modes
+  // In new flexible billing mode, dates are in subscription items
+  const subWithDates = subscription as unknown as SubscriptionWithPeriodDates;
+  let currentPeriodStart = subWithDates.current_period_start;
+  let currentPeriodEnd = subWithDates.current_period_end;
+
+  // If not at top level, get from first subscription item (new billing mode)
+  if (typeof currentPeriodStart !== 'number' || typeof currentPeriodEnd !== 'number') {
+    const firstItem = subscription.items?.data?.[0] as unknown as SubscriptionItemWithPeriod | undefined;
+    if (firstItem) {
+      currentPeriodStart = firstItem.current_period_start;
+      currentPeriodEnd = firstItem.current_period_end;
+    }
+  }
 
   console.log("📋 Subscription retrieved:", {
     id: subscription.id,
     status: subscription.status,
-    current_period_start: subscription.current_period_start,
-    current_period_end: subscription.current_period_end,
+    current_period_start: currentPeriodStart,
+    current_period_end: currentPeriodEnd,
     created: subscription.created
   });
 
   // CRITICAL: These are unix timestamps, they should ALWAYS exist
-  if (typeof subscription.current_period_start !== 'number' ||
-      typeof subscription.current_period_end !== 'number') {
+  if (typeof currentPeriodStart !== 'number' || typeof currentPeriodEnd !== 'number') {
     console.error("❌ Invalid subscription period dates from Stripe");
     console.error("Full subscription object:", JSON.stringify(subscription, null, 2));
     throw new Error("Invalid subscription period dates");
@@ -161,8 +182,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripe_subscription_id: subscriptionId,
       stripe_customer_id: subscription.customer as string,
       status: subscription.status,
-      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
+      current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end,
     });
 
@@ -184,7 +205,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // Send welcome email
   try {
-    const nextBillingDate = new Date(subscription.current_period_end * 1000).toLocaleDateString("en-US", {
+    const nextBillingDate = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
@@ -265,34 +286,62 @@ async function handleInvoicePaymentSucceeded(invoice: StripeInvoiceWithSubscript
   // Send renewal email
   try {
     // Get next billing date from Stripe subscription
-    const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as StripeSubscriptionWithPeriod;
-    const nextBillingDate = new Date(stripeSubscription.current_period_end * 1000).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
+    const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-    await sendSubscriptionEmail({
-      to: invoice.customer_email || "",
-      type: "subscription_renewed",
-      tokens,
-      subscriptionId,
-      packageName,
-      nextBillingDate,
-    });
-    console.log("✅ Renewal email sent");
+    // Extract period end - handle both old and new billing modes
+    const subWithDates = stripeSubscription as unknown as SubscriptionWithPeriodDates;
+    let periodEnd = subWithDates.current_period_end;
+    if (typeof periodEnd !== 'number') {
+      const firstItem = stripeSubscription.items?.data?.[0] as unknown as SubscriptionItemWithPeriod | undefined;
+      if (firstItem) {
+        periodEnd = firstItem.current_period_end;
+      }
+    }
+
+    if (typeof periodEnd === 'number') {
+      const nextBillingDate = new Date(periodEnd * 1000).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+
+      await sendSubscriptionEmail({
+        to: invoice.customer_email || "",
+        type: "subscription_renewed",
+        tokens,
+        subscriptionId,
+        packageName,
+        nextBillingDate,
+      });
+      console.log("✅ Renewal email sent");
+    } else {
+      console.warn("⚠️ Could not determine next billing date for renewal email");
+    }
   } catch (emailError) {
     console.error("⚠️ Failed to send email (non-critical):", emailError);
   }
 }
 
 // Handle subscription status updates
-async function handleSubscriptionUpdated(subscription: StripeSubscriptionWithPeriod) {
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log("🔄 Subscription updated:", subscription.id);
 
+  // Extract period dates - handle both old and new Stripe billing modes
+  const subWithDates = subscription as unknown as SubscriptionWithPeriodDates;
+  let currentPeriodStart = subWithDates.current_period_start;
+  let currentPeriodEnd = subWithDates.current_period_end;
+
+  // If not at top level, get from first subscription item (new billing mode)
+  if (typeof currentPeriodStart !== 'number' || typeof currentPeriodEnd !== 'number') {
+    const firstItem = subscription.items?.data?.[0] as unknown as SubscriptionItemWithPeriod | undefined;
+    if (firstItem) {
+      currentPeriodStart = firstItem.current_period_start;
+      currentPeriodEnd = firstItem.current_period_end;
+    }
+  }
+
   // Validate dates
-  if (typeof subscription.current_period_start !== 'number' ||
-      typeof subscription.current_period_end !== 'number') {
+  if (typeof currentPeriodStart !== 'number' || typeof currentPeriodEnd !== 'number') {
     console.error("❌ Invalid subscription period dates in update");
     return;
   }
@@ -301,8 +350,8 @@ async function handleSubscriptionUpdated(subscription: StripeSubscriptionWithPer
     .from("subscriptions")
     .update({
       status: subscription.status,
-      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      current_period_start: new Date(currentPeriodStart * 1000).toISOString(),
+      current_period_end: new Date(currentPeriodEnd * 1000).toISOString(),
       cancel_at_period_end: subscription.cancel_at_period_end,
       canceled_at: subscription.canceled_at
         ? new Date(subscription.canceled_at * 1000).toISOString()
