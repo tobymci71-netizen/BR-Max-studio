@@ -309,7 +309,7 @@ function SubscriptionSuccessContent() {
             </button>
             
             <button
-              onClick={() => router.push("/dashboard/subscription")}
+              onClick={() => router.push("/subscription")}
               className="w-full border-2 border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:border-gray-400 hover:bg-gray-50 transition"
             >
               Manage Subscription

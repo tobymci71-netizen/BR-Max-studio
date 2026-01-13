@@ -10,7 +10,7 @@ import {
   useUser,
 } from "@clerk/nextjs";
 import { useAppContext } from "@/context/AppContext";
-import { Sparkles, Moon, Coins, Loader2, Plus } from "lucide-react";
+import { Sparkles, Moon, Coins, Loader2 } from "lucide-react";
 import { CountUp } from "@/components/CountUp";
 import Link from "next/link";
 import { useSupabase } from "@/hooks/useSupabaseClient";
@@ -172,13 +172,6 @@ const Navbar = () => {
                 </div>
               </div>
 
-              <Link
-                href="/buytokens"
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#6c47ff] to-[#8b5cf6] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[#6c47ff]/30 transition-all duration-300 hover:scale-[1.05] hover:shadow-[#6c47ff]/40"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Get Tokens</span>
-              </Link>
             </SignedIn>
 
             <button
