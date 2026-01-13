@@ -1,14 +1,11 @@
 import { z } from "zod";
 import {
   AbsoluteFill,
-  staticFile,
 } from "remotion";
-import { Video } from "@remotion/media"
 import { loadFont } from "@remotion/google-fonts/Inter";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   CompositionProps,
-  DEFAULT_BACKGROUND_VIDEO,
   defaultMyCompProps,
 } from "../../types/constants";
 import { IMessageOverlay } from "../../components/iMessageOverlay/iMessageOverlay";
@@ -25,8 +22,8 @@ const container: React.CSSProperties = {
 export const Main = ({
   ...props
 }: z.infer<typeof CompositionProps>) => {
-  const { backgroundVideo, greenScreen } = props;
-  const [videoError, setVideoError] = useState(false);
+  // const { backgroundVideo, greenScreen } = props;
+  // const [videoError, setVideoError] = useState(false);
 
   // Use the already-prepared preview props (player input), but layer defaults for any missing fields.
   const previewProps = useMemo(
@@ -39,24 +36,25 @@ export const Main = ({
     [previewProps.monetization],
   );
 
-  const getBackgroundVideo = useCallback(() => {
-    if (backgroundVideo) {
-      if (
-        backgroundVideo.startsWith("http") ||
-        backgroundVideo.startsWith("blob")
-      ) {
-        return backgroundVideo;
-      }
-      return staticFile(backgroundVideo);
-    }
-    return staticFile(DEFAULT_BACKGROUND_VIDEO);
-  }, [backgroundVideo]);
+  // const getBackgroundVideo = useCallback(() => {
+  //   if (backgroundVideo) {
+  //     if (
+  //       backgroundVideo.startsWith("http") ||
+  //       backgroundVideo.startsWith("blob")
+  //     ) {
+  //       return backgroundVideo;
+  //     }
+  //     return staticFile(backgroundVideo);
+  //   }
+  //   return staticFile(DEFAULT_BACKGROUND_VIDEO);
+  // }, [backgroundVideo]);
 
   const chatSettings = previewProps.CHAT_SETTINGS;
   const messagesWithCorrectTiming = previewProps.messages;
 
   // Use green screen color (#00FF00) when greenScreen is enabled
-  const backgroundColor = greenScreen ? "#00FF00" : (videoError ? "green" : "white");
+  // const backgroundColor = greenScreen ? "#00FF00" : (videoError ? "green" : "white");
+  const backgroundColor = "#00FF00";
 
   return (
     <AbsoluteFill
@@ -65,7 +63,7 @@ export const Main = ({
         backgroundColor,
       }}
     >
-      {!greenScreen && !videoError && (
+      {/* {!greenScreen && !videoError && (
         <Video
           src={getBackgroundVideo()}
           muted
@@ -75,7 +73,7 @@ export const Main = ({
             onError: () => setVideoError(true)
           }}
         />
-      )}
+      )} */}
       <IMessageOverlay
         messages={messagesWithCorrectTiming}
         CHAT_SETTINGS={chatSettings}
