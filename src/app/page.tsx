@@ -31,8 +31,7 @@ const IMessagesStudio = dynamic(
 
 export default function DemoPage() {
   const { isSignedIn } = useUser();
-  const studioHardPaywall =
-    process.env.NEXT_PUBLIC_STUDIO_HARD_PAYWALL === "true";
+  const studioHardPaywall = process.env.NEXT_PUBLIC_STUDIO_HARD_PAYWALL === "true";
   const [studioAccessState, setStudioAccessState] = useState<
     "pending" | "allowed" | "blocked"
   >(studioHardPaywall ? "pending" : "allowed");
@@ -209,7 +208,7 @@ export default function DemoPage() {
         clearTimeout(timeoutId);
 
         if (!mounted) return;
-        if (response.ok && data?.hasPurchase) {
+        if (response.ok && data?.allow) {
           setStudioAccessState("allowed");
         } else {
           setStudioAccessState("blocked");

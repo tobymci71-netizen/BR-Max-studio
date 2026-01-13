@@ -8,7 +8,7 @@ export async function GET() {
 
     if (!userId) {
       return NextResponse.json(
-        { hasPurchase: false, authenticated: false },
+        { allow: false, authenticated: false },
         { status: 401 },
       );
     }
@@ -24,28 +24,27 @@ export async function GET() {
       const adminUserIds = settingsData.admin_user_ids || [];
 
       if (adminUserIds.includes(userId)) {
-        return NextResponse.json({ hasPurchase: true, isAdmin: true });
+        return NextResponse.json({ allow: true, isAdmin: true });
       }
     }
 
     // Check for token purchase
     const { data, error } = await supabaseAdmin
-      .from("token_transactions")
+      .from("subscriptions")
       .select("id")
       .eq("user_id", userId)
-      .eq("type", "token_purchase")
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
 
-    const hasPurchase = Boolean(data);
+    const allow = Boolean(data);
 
-    return NextResponse.json({ hasPurchase });
+    return NextResponse.json({ allow });
   } catch (error) {
     console.error("[STUDIO-ACCESS] ❌ Studio access check failed:", error);
     return NextResponse.json(
-      { hasPurchase: false, error: "Failed to evaluate studio access" },
+      { allow: false, error: "Failed to evaluate studio access" },
       { status: 500 },
     );
   }
