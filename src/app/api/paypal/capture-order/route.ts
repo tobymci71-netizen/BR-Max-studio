@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { addTokenTransaction } from "@/lib/tokenTransactions";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { capturePaypalOrder, getPaypalOrder } from "../paypalUtil"; // Import getPaypalOrder
-import { sendPaymentSuccessEmail } from "@/lib/emailUtil";
 
 const parseCustomIdValue = (customId: string, key: string) => {
   if (!customId) return null;
@@ -220,16 +219,16 @@ export async function POST(request: Request) {
     if (targetEmail) {
       console.log("📧 Sending payment success email to:", targetEmail);
       try {
-        await sendPaymentSuccessEmail({
-          to: targetEmail,
-          amount,
-          tokens,
-          transactionId,
-          payerName,
-          currency,
-          timestamp: timestamp.toLocaleString(),
-          paymentMethod: "PayPal"
-        });
+        // await sendPaymentSuccessEmail({
+        //   to: targetEmail,
+        //   amount,
+        //   tokens,
+        //   transactionId,
+        //   payerName,
+        //   currency,
+        //   timestamp: timestamp.toLocaleString(),
+        //   paymentMethod: "PayPal"
+        // });
         console.log("✅ Email sent successfully");
       } catch (emailError) {
         console.error("⚠️ Failed to send email (non-critical):", emailError);

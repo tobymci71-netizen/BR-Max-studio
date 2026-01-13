@@ -4,7 +4,6 @@ import crypto from "crypto";
 import { razorpay } from "@/lib/razorpayClient";
 import { addTokenTransaction } from "@/lib/tokenTransactions";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendPaymentSuccessEmail } from "@/lib/emailUtil";
 
 const parseNotesValue = (notes: Record<string, unknown> | undefined, key: string) => {
   if (!notes) return null;
@@ -50,7 +49,6 @@ export async function POST(request: Request) {
     if (uid && uid !== userId) return NextResponse.json({ error: "Mismatch" }, { status: 403 });
 
     const txnId = `TXN-${userId.slice(-6).toUpperCase()}-${Date.now().toString().slice(-6)}${Math.floor(Math.random()*1000)}`;
-    const timestamp = new Date(Number(payment.created_at) * 1000);
 
     let targetEmail = userEmail;
     if (!targetEmail && payment.email && !payment.email.includes("razorpay.com")) {
@@ -94,18 +92,18 @@ export async function POST(request: Request) {
     });
 
     // Send Email (Pass currency explicitly)
-    if (targetEmail) {
-      await sendPaymentSuccessEmail({
-        to: targetEmail,
-        amount: amount.toFixed(2),
-        currency: order.currency, // "INR", etc.
-        tokens,
-        transactionId: txnId,
-        payerName: user?.firstName || "Customer",
-        timestamp: timestamp.toLocaleString(),
-        paymentMethod: "Razorpay",
-      });
-    }
+    // if (targetEmail) {
+    //   await sendPaymentSuccessEmail({
+    //     to: targetEmail,
+    //     amount: amount.toFixed(2),
+    //     currency: order.currency, // "INR", etc.
+    //     tokens,
+    //     transactionId: txnId,
+    //     payerName: user?.firstName || "Customer",
+    //     timestamp: timestamp.toLocaleString(),
+    //     paymentMethod: "Razorpay",
+    //   });
+    // }
 
     return NextResponse.json({ success: true, transactionId: txnId });
 

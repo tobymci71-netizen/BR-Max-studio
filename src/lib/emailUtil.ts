@@ -1,20 +1,22 @@
-interface PaymentEmailParams {
+interface SubscriptionEmailParams {
   to: string;
-  amount: string;
-  tokens: number;
-  transactionId: string;
-  payerName: string;
-  timestamp: string;
-  currency?: string;
-  paymentMethod: string;
+  type: 
+    | "subscription_started" 
+    | "subscription_renewed" 
+    | "subscription_canceled" 
+    | "payment_failed";
+  tokens?: number;
+  subscriptionId?: string;
+  packageName?: string;
+  amount?: string;
+  nextBillingDate?: string;
+  failureReason?: string;
 }
 
-export async function sendPaymentSuccessEmail(params: PaymentEmailParams) {
+export async function sendSubscriptionEmail(params: SubscriptionEmailParams) {
   try {
-    // We call your internal API route to actually send the email
-    // This prevents importing 'resend' or email libraries directly in edge functions if needed
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL}/api/send-email`,
+      `${process.env.NEXT_PUBLIC_BASE_URL}/api/send-subscription-email`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,10 +25,9 @@ export async function sendPaymentSuccessEmail(params: PaymentEmailParams) {
     );
 
     if (!response.ok) {
-      console.warn("Email API returned error:", response.status);
+      console.warn("Subscription email API returned error:", response.status);
     }
   } catch (error) {
-    // We catch error so it doesn't block the payment response
-    console.error("Failed to trigger payment email:", error);
+    console.error("Failed to trigger subscription email:", error);
   }
 }

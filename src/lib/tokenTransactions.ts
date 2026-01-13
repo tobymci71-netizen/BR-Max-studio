@@ -8,7 +8,8 @@ interface AddTokenTransactionParams {
   | "render_refund"
   | "admin_credit"
   | "admin_debit"
-  | "token_purchase";
+  | "token_purchase"
+  | "subscription";
   amount: number
   description: string;
   renderJobId?: string;
