@@ -1,85 +1,89 @@
 "use client"
-import TokenPurchaseForm from "@/components/TokenPurchaseForm"
-import { Lock, Check, Zap, Shield } from "lucide-react"
+import { Lock, Wrench, AlertTriangle } from "lucide-react"
 
 export default function StudioPaywall() {
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="flex items-center justify-center min-h-screen py-8 px-4">
-        <div className="w-full max-w-full px-4">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/5 border border-white/10 mb-4">
-              <Lock className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      {/* Yellow caution tape - realistic diagonal stripes */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        
+
+        {/* Third tape strip - top */}
+        <div className="absolute -right-20 top-16 w-[140%] h-20 transform rotate-[10deg] origin-top-right">
+          <div className="absolute inset-0 bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-600 shadow-[0_8px_32px_rgba(0,0,0,0.6)]" style={{
+            backgroundImage: 'repeating-linear-gradient(90deg, #facc15 0px, #facc15 80px, #eab308 80px, #eab308 160px)',
+          }}>
+            <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/40" />
+            <div className="absolute inset-0 flex items-center justify-around text-black font-black text-base tracking-[0.3em] py-1" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.3)' }}>
+              <span className="whitespace-nowrap">⚠ UNDER CONSTRUCTION ⚠</span>
+              <span className="whitespace-nowrap">⚠ UNDER CONSTRUCTION ⚠</span>
+              <span className="whitespace-nowrap">⚠ UNDER CONSTRUCTION ⚠</span>
+              <span className="whitespace-nowrap">⚠ UNDER CONSTRUCTION ⚠</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">Unlock Studio Access</h1>
-            <p className="text-sm text-white/60 max-w-2xl mx-auto">
-              Choose a package to activate your account and start creating professional videos
+          </div>
+          {/* Tape shadow underneath */}
+          <div className="absolute -bottom-2 inset-x-0 h-3 bg-black/40 blur-md" />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center min-h-screen py-8 px-4 relative z-10">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            {/* Icon container with construction theme */}
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-500/10 border-2 border-yellow-500/30 mb-6 relative">
+              <Lock className="w-10 h-10 text-yellow-500" />
+              <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center">
+                <Wrench className="w-5 h-5 text-black" />
+              </div>
+            </div>
+
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+              Payment Gateway
+              <br />
+              <span className="text-yellow-500">Under Construction</span>
+            </h1>
+            
+            <p className="text-lg text-white/70 max-w-xl mx-auto mb-8 leading-relaxed">
+              Our payment system is currently being upgraded to serve you better. We'll be back online very soon.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[2fr_1fr] gap-6 max-w-7xl mx-auto">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
-              <div className="border-b border-white/10 px-6 py-4 bg-white/[0.02]">
-                <h3 className="text-lg font-bold text-white">Select Your Package</h3>
-                <p className="text-xs text-white/50 mt-1">All packages include instant access and full features</p>
-              </div>
-              <div className="p-6">
-                <TokenPurchaseForm />
-              </div>
-              <div className="border-t border-white/10 px-6 py-4 bg-white/[0.03]">
-                <div className="flex flex-wrap gap-4 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-white/60" />
-                    <span className="text-white/70 font-medium">Secure Payment</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-white/60" />
-                    <span className="text-white/70 font-medium">Instant Delivery</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-white/60" />
-                    <span className="text-white/70 font-medium">No Recurring Charges</span>
-                  </div>
+          {/* Info cards */}
+          <div className="space-y-4 mb-8">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Studio Access for Paid Users Only</h3>
+                  <p className="text-sm text-white/60 leading-relaxed">
+                    Our studio is a premium service available exclusively to paid subscribers. Once the payment gateway is restored, you'll be able to unlock full access to all professional features.
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {/* <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <svg className="w-5 h-5 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <h4 className="text-base font-bold text-white">What's Included</h4>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                  <Wrench className="w-5 h-5 text-blue-400" />
                 </div>
-                <ul className="space-y-3">
-                  {[
-                    "Instant studio access",
-                    "GPU-powered rendering",
-                    "High-quality 4K exports",
-                    "Commercial usage rights",
-                    "Priority processing",
-                  ].map((benefit, i) => (
-                    <li key={i} className="flex items-center gap-3 text-sm">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white/40 flex-shrink-0" />
-                      <span className="text-white/70">{benefit}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div> */}
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-white/60 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-white mb-1">Secure & Instant</h4>
-                    <p className="text-xs text-white/60 leading-relaxed">
-                      Your studio unlocks automatically after payment confirmation. All transactions are encrypted and
-                      secure.
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-2">We're Working Hard</h3>
+                  <p className="text-sm text-white/60 leading-relaxed">
+                    Our team is actively working on improvements to provide you with a smoother, more secure payment experience. Thank you for your patience.
+                  </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Status banner */}
+          <div className="rounded-xl border border-yellow-500/20 bg-gradient-to-r from-yellow-500/5 to-yellow-500/10 p-4">
+            <div className="flex items-center justify-center gap-3 text-yellow-500">
+              <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+              <span className="text-sm font-medium">Expected to be back online shortly</span>
             </div>
           </div>
         </div>
