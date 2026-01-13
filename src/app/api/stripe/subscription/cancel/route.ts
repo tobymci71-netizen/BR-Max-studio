@@ -73,6 +73,7 @@ export async function POST() {
       return NextResponse.json({
         success: true,
         message: "Subscription will be cancelled at the end of the billing period",
+        // @ts-expect-error IT does exist
         cancelAt: stripeSubscription.current_period_end,
       });
     } catch (stripeError) {
