@@ -6,5 +6,4 @@ export interface TokenPackage {
   priceUSD: number;
   features: string[];
   popular: boolean;
-  stripe_price_id?: string;
 }
