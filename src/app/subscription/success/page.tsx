@@ -349,7 +349,7 @@ function SubscriptionSuccessContent() {
                 </div>
               </div>
               <button
-                onClick={() => router.push("/dashboard")}
+                onClick={() => router.push("/")}
                 className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center gap-2 text-base shadow-lg hover:shadow-cyan-500/30 animate-slide-up"
                 style={{ animationDelay: "0.6s" }}
               >
