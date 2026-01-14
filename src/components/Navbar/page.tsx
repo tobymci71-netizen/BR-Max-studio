@@ -39,6 +39,26 @@ const Navbar = () => {
   const { user, isLoaded } = useUser();
   const [tokens, setTokens] = useState<number | null>(null);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(false)
+
+  const fetchSubscription = useCallback(async () => {
+    if (!user) {
+      return
+    }
+
+    try {
+
+      const response = await fetch("/api/stripe/subscription/get")
+      const data = await response.json()
+
+      if (response.ok) {
+        setHasSubscription(data.hasSubscription)
+      }
+    } catch (err) {
+      console.error("Error fetching subscription:", err)
+    }
+  }, [isLoaded, user?.id]);
+
 
   const fetchTokens = useCallback(async () => {
     if (!isLoaded || !user?.id) {
@@ -77,6 +97,9 @@ const Navbar = () => {
   useEffect(() => {
     fetchTokens();
   }, [fetchTokens]);
+  useEffect(() => {
+    fetchSubscription();
+  }, [fetchSubscription]);
 
   useEffect(() => {
     if (!isLoaded || !user?.id) return;
@@ -143,7 +166,7 @@ const Navbar = () => {
 
           <div className="ml-auto flex flex-1 items-center justify-end gap-3 sm:gap-4">
             <SignedIn>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap flex-col items-center gap-3 relative">
                 <div className="flex items-start gap-2 rounded-full border border-[#6c47ff]/20 bg-gradient-to-r from-[#6c47ff]/10 to-[#8b5cf6]/10 px-4 py-2 shadow-sm shadow-[#6c47ff]/10 backdrop-blur-sm transition-all duration-300 hover:shadow-[#6c47ff]/25 dark:border-[#6c47ff]/30 dark:from-[#6c47ff]/15 dark:to-[#8b5cf6]/15">
                   <Coins className="mt-1 h-4 w-4 text-[#6c47ff] dark:text-[#8b5cf6]" />
                   <div className="flex flex-col">
@@ -170,6 +193,13 @@ const Navbar = () => {
                     )}
                   </div>
                 </div>
+                
+
+                {hasSubscription && (
+                  <Link href="/subscription" className="text-xs hover:underline transition-all duration-300 absolute">
+                    Manage subscriptions
+                  </Link>
+                )}
               </div>
 
             </SignedIn>
