@@ -167,7 +167,7 @@ const Navbar = () => {
           <div className="ml-auto flex flex-1 items-center justify-end gap-3 sm:gap-4">
             <SignedIn>
               <div className="flex flex-wrap flex-col items-center gap-3 relative">
-                <div className="flex items-start gap-2 rounded-full border border-[#6c47ff]/20 mb-5 bg-gradient-to-r from-[#6c47ff]/10 to-[#8b5cf6]/10 px-4 py-2 shadow-sm shadow-[#6c47ff]/10 backdrop-blur-sm transition-all duration-300 hover:shadow-[#6c47ff]/25 dark:border-[#6c47ff]/30 dark:from-[#6c47ff]/15 dark:to-[#8b5cf6]/15">
+                <div className={`flex items-start gap-2 rounded-full border border-[#6c47ff]/20 ${hasSubscription && "mb-5"} bg-gradient-to-r from-[#6c47ff]/10 to-[#8b5cf6]/10 px-4 py-2 shadow-sm shadow-[#6c47ff]/10 backdrop-blur-sm transition-all duration-300 hover:shadow-[#6c47ff]/25 dark:border-[#6c47ff]/30 dark:from-[#6c47ff]/15 dark:to-[#8b5cf6]/15`}>
                   <Coins className="mt-1 h-4 w-4 text-[#6c47ff] dark:text-[#8b5cf6]" />
                   <div className="flex flex-col">
                     {loadingTokens ? (
