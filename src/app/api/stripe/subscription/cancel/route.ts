@@ -12,7 +12,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2025-12-15.clover',
 });
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     const { userId } = await auth();
 
@@ -21,6 +21,15 @@ export async function POST() {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Get the cancellation reason from request body
+    let reason = null;
+    try {
+      const body = await req.json();
+      reason = body.reason || null;
+    } catch {
+      // No body provided, reason stays null
     }
 
     // Fetch active subscription from database
@@ -57,17 +66,36 @@ export async function POST() {
 
       console.log("✅ Subscription cancelled in Stripe:", stripeSubscription.id);
 
-      // Update database to reflect cancellation
+      // Update database to reflect cancellation and save the reason
       const { error: updateError } = await supabaseAdmin
         .from("subscriptions")
         .update({
           cancel_at_period_end: true,
+          cancellation_reason: reason,
+          canceled_at: new Date().toISOString(),
         })
         .eq("id", subscription.id);
 
       if (updateError) {
         console.error("Error updating subscription in database:", updateError);
         // Don't fail the request since Stripe is updated
+      }
+
+      // Also log to a separate cancellation_feedback table for analytics
+      if (reason) {
+        const { error: feedbackError } = await supabaseAdmin
+          .from("cancellation_feedback")
+          .insert({
+            user_id: userId,
+            subscription_id: subscription.id,
+            reason: reason,
+            created_at: new Date().toISOString(),
+          });
+
+        if (feedbackError) {
+          // Log but don't fail - this is optional analytics data
+          console.error("Error saving cancellation feedback:", feedbackError);
+        }
       }
 
       return NextResponse.json({
