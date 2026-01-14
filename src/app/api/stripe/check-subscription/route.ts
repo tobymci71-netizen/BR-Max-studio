@@ -39,7 +39,8 @@ export async function GET() {
     return NextResponse.json({
       hasActiveSubscription: true,
       subscription: {
-        id: subscription.id,
+        id: subscription.package_id,
+        packageId: subscription.package_id,
         packageName: subscription.token_packages.name,
         tokens: subscription.token_packages.tokens,
         price: subscription.token_packages.priceUSD,

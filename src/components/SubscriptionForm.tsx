@@ -86,26 +86,39 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
   }, [user?.id])
 
   // --- HANDLE CHANGE PLAN ---
+  const [modalError, setModalError] = useState("")
+
   const handleOpenChangePlanModal = (pkg: TokenPackage) => {
     setChangePlanTarget(pkg)
     setShowChangePlanModal(true)
     setError("")
+    setModalError("")
   }
 
   const handleCloseChangePlanModal = () => {
     setShowChangePlanModal(false)
     setChangePlanTarget(null)
+    setModalError("")
   }
 
   const handleChangePlan = async () => {
-    if (!changePlanTarget?.stripe_price_id) {
-      setError("This plan cannot be selected. Please contact support.")
+    if (!changePlanTarget) {
+      setModalError("No plan selected")
+      return
+    }
+
+    if (!changePlanTarget.stripe_price_id) {
+      console.error("Missing stripe_price_id for package:", changePlanTarget)
+      setModalError("This plan is not configured for changes. Please contact support.")
       return
     }
 
     try {
       setChangePlanLoading(true)
+      setModalError("")
       setError("")
+
+      console.log("Changing plan to:", changePlanTarget.name, "with price ID:", changePlanTarget.stripe_price_id)
 
       const response = await fetch("/api/stripe/change-plan", {
         method: "POST",
@@ -114,6 +127,7 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
       })
 
       const data = await response.json()
+      console.log("Change plan response:", data)
 
       if (response.ok) {
         setSuccessMessage(
@@ -122,12 +136,13 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
             : `Successfully changed to ${changePlanTarget.name}! Changes will take effect at your next billing cycle.`
         )
         setShowChangePlanModal(false)
+        setChangePlanTarget(null)
         // Refresh subscription status
         const subResponse = await fetch("/api/stripe/check-subscription")
         const subData = await subResponse.json()
         if (subData.hasActiveSubscription && subData.subscription) {
           setActiveSubscription({
-            packageId: subData.subscription.id,
+            packageId: subData.subscription.packageId || subData.subscription.id,
             packageName: subData.subscription.packageName,
             status: subData.subscription.status,
             priceUSD: subData.subscription.price,
@@ -135,11 +150,12 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
           })
         }
       } else {
-        setError(data.error || "Failed to change plan")
+        console.error("Change plan failed:", data.error)
+        setModalError(data.error || "Failed to change plan")
       }
     } catch (err) {
       console.error("Error changing plan:", err)
-      setError("Failed to change plan. Please try again.")
+      setModalError("Failed to change plan. Please try again.")
     } finally {
       setChangePlanLoading(false)
     }
@@ -563,16 +579,23 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
               </div>
 
               {isUpgrade(changePlanTarget) ? (
-                <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl mb-6">
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl mb-4">
                   <p className="text-sm text-indigo-800 dark:text-indigo-300">
                     <strong>Upgrade:</strong> You'll be charged the prorated difference immediately. Your new plan takes effect right away.
                   </p>
                 </div>
               ) : (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl mb-6">
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl mb-4">
                   <p className="text-sm text-amber-800 dark:text-amber-300">
                     <strong>Downgrade:</strong> Your new plan will take effect at the start of your next billing cycle. You'll keep your current benefits until then.
                   </p>
+                </div>
+              )}
+
+              {/* Modal Error */}
+              {modalError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <p className="text-sm text-red-600 dark:text-red-400">{modalError}</p>
                 </div>
               )}
             </div>
