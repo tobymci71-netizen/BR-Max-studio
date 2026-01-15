@@ -8,7 +8,7 @@ import { NotificationPermissionPopup } from "../components/NotificationPermissio
 import { ErrorNotification } from "../components/ErrorNotification";
 import { VoiceSlotWarningPopup } from "../components/VoiceSlotWarningPopup";
 import SubscriptionBanner from "../components/SubscriptionBanner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
@@ -30,7 +30,7 @@ const IMessagesStudio = dynamic(
   { ssr: false },
 );
 
-export default function DemoPage() {
+function DemoPageContent() {
   const { isSignedIn } = useUser();
   const searchParams = useSearchParams();
   const studioHardPaywall = process.env.NEXT_PUBLIC_STUDIO_HARD_PAYWALL === "true";
@@ -551,5 +551,22 @@ export default function DemoPage() {
 
       {/* Error Notification is rendered in the top-right stack above */}
     </>
+  );
+}
+
+export default function DemoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-black text-white">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <p className="text-sm text-white/80">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <DemoPageContent />
+    </Suspense>
   );
 }
