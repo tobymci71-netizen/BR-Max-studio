@@ -15,6 +15,7 @@ import {
   Crown,
   Percent,
   Calendar,
+  LucideIcon,
 } from "lucide-react";
 
 /* ===================== TYPES ===================== */
@@ -195,8 +196,13 @@ export default function MyReferralsPage() {
 }
 
 /* ===================== COMPONENT ===================== */
+interface StatProps {
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+}
 
-function Stat({ label, value, icon: Icon }: any) {
+function Stat({ label, value, icon: Icon }: StatProps) {
   return (
     <div className="border rounded-xl p-4">
       <Icon className="w-5 h-5 mb-2 text-zinc-500" />
