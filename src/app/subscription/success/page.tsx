@@ -173,7 +173,7 @@ function SubscriptionSuccessContent() {
 
             <div className="space-y-2">
               <button
-                onClick={() => window.open("https://discord.gg/brmax", "_blank")}
+                onClick={() => window.open("https://discord.gg/h4chRAbjEZ", "_blank")}
                 className="w-full bg-white text-black py-3 rounded-lg font-medium hover:bg-white/90 transition text-sm"
               >
                 Contact Support
@@ -233,7 +233,7 @@ function SubscriptionSuccessContent() {
                 Go to Dashboard
               </button>
               <button
-                onClick={() => window.open("https://discord.gg/brmax", "_blank")}
+                onClick={() => window.open("https://discord.gg/h4chRAbjEZ", "_blank")}
                 className="w-full border border-zinc-700 text-white/80 py-3 rounded-lg font-medium hover:bg-zinc-800 transition text-sm"
               >
                 Contact Support

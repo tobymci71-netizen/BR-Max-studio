@@ -92,7 +92,7 @@ export default function SubscriptionCancelPage() {
             </button>
             
             <button
-              onClick={() => window.open("https://discord.gg/brmax", "_blank")}
+              onClick={() => window.open("https://discord.gg/h4chRAbjEZ", "_blank")}
               className="w-full border-2 border-purple-300 text-purple-700 py-3 rounded-lg font-semibold hover:border-purple-400 hover:bg-purple-50 transition flex items-center justify-center gap-2"
             >
               <MessageCircle className="w-5 h-5" />
