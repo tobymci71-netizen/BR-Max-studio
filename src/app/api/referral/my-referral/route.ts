@@ -15,27 +15,68 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Find referral by user_id
-    const { data: referral, error: fetchError } = await supabaseAdmin
+    let referral = null;
+
+    const { data, error } = await supabaseAdmin
       .from("referrals")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (fetchError) {
-      console.error("[my-referral] Database error:", fetchError);
-      return NextResponse.json({ error: "Failed to fetch referral data" }, { status: 500 });
+    if (error) {
+      console.error("[my-referral] Database error:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch referral data" },
+        { status: 500 },
+      );
     }
 
-    // If no referral found, return hasReferral: false
+    referral = data;
+
+    if (!referral && process.env.FAKE_REFERRAL_RECORD_ID_FOR_TESTING) {
+      const { data: referralFake, error: fakeError } = await supabaseAdmin
+        .from("referrals")
+        .select("*")
+        .eq("referral_id", process.env.FAKE_REFERRAL_RECORD_ID_FOR_TESTING)
+        .maybeSingle();
+
+      if (fakeError) {
+        console.error("[my-referral] Fake referral fetch error:", fakeError);
+      } else {
+        referral = referralFake;
+      }
+    }
+
     if (!referral) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         hasReferral: false,
-        message: "You don't have a referral code yet. Please contact support to get one."
+        message:
+          "You don't have a referral code yet. Please contact support to get one.",
       });
     }
 
-    // Return referral data
+    // Fetch user details for all referred users
+    const referredUserIds = referral.referred_user_ids || [];
+    let userDetails: Record<string, { full_name?: string; email?: string }> = {};
+
+    if (referredUserIds.length > 0) {
+      const { data: users, error: usersError } = await supabaseAdmin
+        .from("users")
+        .select("user_id, full_name, email")
+        .in("user_id", referredUserIds);
+
+      if (!usersError && users) {
+        userDetails = users.reduce((acc, user) => {
+          acc[user.user_id] = {
+            full_name: user.full_name,
+            email: user.email,
+          };
+          return acc;
+        }, {} as Record<string, { full_name?: string; email?: string }>);
+      }
+    }
+
+    // Return referral data with user details
     return NextResponse.json({
       hasReferral: true,
       referral: {
@@ -51,9 +92,13 @@ export async function GET() {
         created_at: referral.created_at,
         updated_at: referral.updated_at,
       },
+      userDetails,
     });
   } catch (error) {
     console.error("[my-referral] Unexpected error:", error);
-    return NextResponse.json({ error: "Unable to fetch referral data" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Unable to fetch referral data" },
+      { status: 500 },
+    );
   }
 }
