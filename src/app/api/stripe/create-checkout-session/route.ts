@@ -25,6 +25,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const packageId = body.packageId;
+    const referralCode = typeof body.referralCode === "string" ? body.referralCode.trim() : null;
 
     if (!packageId) {
       return NextResponse.json(
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
         package_id: packageId,
         tokens: packageData.tokens.toString(),
         package_name: packageData.name,
+        ...(referralCode && { referral_code: referralCode }),
       },
       subscription_data: {
         metadata: {
@@ -103,6 +105,7 @@ export async function POST(request: Request) {
           package_id: packageId,
           tokens: packageData.tokens.toString(),
           package_name: packageData.name,
+          ...(referralCode && { referral_code: referralCode }),
         },
       },
     });

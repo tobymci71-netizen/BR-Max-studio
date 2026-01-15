@@ -114,6 +114,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const packageId = session.metadata?.package_id;
   const tokens = Number(session.metadata?.tokens || 0);
   const packageName = session.metadata?.package_name || "Subscription";
+  const referralCode = session.metadata?.referral_code;
 
   if (!userId || !packageId) {
     console.error("❌ Missing metadata in checkout session");
@@ -193,6 +194,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   console.log("✅ Subscription record created in database");
+
+  // Record referral if there's a referral code
+  if (referralCode && userId) {
+    try {
+      console.log("🔗 Recording referral for code:", referralCode);
+      await recordReferralSubscription(
+        referralCode,
+        userId,
+        subscriptionId,
+        session.amount_total ? session.amount_total / 100 : 0
+      );
+      console.log("✅ Referral recorded successfully");
+    } catch (refError) {
+      console.error("⚠️ Failed to record referral (non-critical):", refError);
+    }
+  }
 
   // Credit tokens for the first month
   await creditTokensForSubscription(
@@ -521,4 +538,63 @@ async function creditTokensForSubscription(
   });
 
   console.log("✅ Tokens credited successfully:", transactionId);
+}
+
+// Helper function to record referral subscription
+async function recordReferralSubscription(
+  referralCode: string,
+  referredUserId: string,
+  subscriptionId: string,
+  subscriptionAmount: number
+) {
+  // Find the referral by code
+  const { data: referral, error: fetchError } = await supabaseAdmin
+    .from("referrals")
+    .select("*")
+    .eq("referral_code", referralCode)
+    .single();
+
+  if (fetchError || !referral) {
+    console.log("⚠️ Referral code not found:", referralCode);
+    return;
+  }
+
+  // Check if user already referred
+  const existingReferredUserIds = referral.referred_user_ids || [];
+  if (existingReferredUserIds.includes(referredUserId)) {
+    console.log("ℹ️ User already tracked for this referral");
+    return;
+  }
+
+  // Create the payment record
+  const newPayment = {
+    userId: referredUserId,
+    subscriptionId: subscriptionId,
+    subscriptionAmount: subscriptionAmount,
+    paymentPercentage: referral.commission_percentage,
+    amountToPay: (subscriptionAmount * referral.commission_percentage) / 100,
+    isPaid: false,
+    paidAt: null,
+  };
+
+  // Update referral with new referred user
+  const updatedReferredUserIds = [referredUserId, ...existingReferredUserIds];
+  const updatedPayments = [newPayment, ...(referral.referral_payments || [])];
+
+  const { error: updateError } = await supabaseAdmin
+    .from("referrals")
+    .update({
+      referred_user_ids: updatedReferredUserIds,
+      total_referrals_count: updatedReferredUserIds.length,
+      referral_payments: updatedPayments,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("referral_id", referral.referral_id);
+
+  if (updateError) {
+    console.error("❌ Failed to update referral:", updateError);
+    throw updateError;
+  }
+
+  console.log(`✅ Referral recorded: ${referredUserId} referred by code ${referralCode}`);
 }

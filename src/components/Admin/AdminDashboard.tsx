@@ -7,8 +7,13 @@ import {
   AlertCircle,
   BarChart3,
   Database,
+  DollarSign,
+  Eye,
+  Link2,
   Loader2,
   MoreHorizontal,
+  Pencil,
+  Plus,
   RefreshCcw,
   ShieldCheck,
   Target,
@@ -348,6 +353,22 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [tokenSuccess, setTokenSuccess] = useState<string | null>(null);
 
+  // Referral modal state
+  const [referralModalOpen, setReferralModalOpen] = useState(false);
+  const [referralModalMode, setReferralModalMode] = useState<"create" | "edit">("create");
+  const [editingReferralId, setEditingReferralId] = useState<string | null>(null);
+  const [referralUserId, setReferralUserId] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [referralCommission, setReferralCommission] = useState("10");
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [referralSuccess, setReferralSuccess] = useState<string | null>(null);
+
+  // Referral payments modal state
+  const [paymentsModalOpen, setPaymentsModalOpen] = useState(false);
+  const [selectedReferralForPayments, setSelectedReferralForPayments] = useState<GenericSupabaseRow | null>(null);
+  const [paymentUpdateLoading, setPaymentUpdateLoading] = useState<string | null>(null);
+
   const fetchAdminData = useCallback(async (passwordToUse?: string) => {
     setLoading(true);
     setError(null);
@@ -503,6 +524,176 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
 
   const handleJobDoubleClick = (job: GenericSupabaseRow) => {
     setSelectedJob(job);
+  };
+
+  // Referral modal functions
+  const openReferralModal = () => {
+    setReferralModalMode("create");
+    setEditingReferralId(null);
+    setReferralUserId("");
+    setReferralCode("");
+    setReferralCommission("10");
+    setReferralError(null);
+    setReferralSuccess(null);
+    setReferralModalOpen(true);
+  };
+
+  const openEditReferralModal = (referral: GenericSupabaseRow) => {
+    setReferralModalMode("edit");
+    setEditingReferralId(safeValue(referral.referral_id));
+    setReferralUserId(safeValue(referral.user_id));
+    setReferralCode(safeValue(referral.referral_code));
+    setReferralCommission(safeValue(referral.commission_percentage) || "10");
+    setReferralError(null);
+    setReferralSuccess(null);
+    setReferralModalOpen(true);
+  };
+
+  const closeReferralModal = () => {
+    setReferralModalOpen(false);
+    setReferralModalMode("create");
+    setEditingReferralId(null);
+    setReferralError(null);
+    setReferralSuccess(null);
+  };
+
+  const handleReferralSubmit = async () => {
+    if (referralModalMode === "create" && !referralUserId.trim()) {
+      setReferralError("Please select a user.");
+      setReferralSuccess(null);
+      return;
+    }
+
+    if (!referralCode.trim()) {
+      setReferralError("Please enter a referral code.");
+      setReferralSuccess(null);
+      return;
+    }
+
+    const commissionValue = Number(referralCommission);
+    if (!Number.isFinite(commissionValue) || commissionValue < 0 || commissionValue > 100) {
+      setReferralError("Commission must be between 0 and 100.");
+      setReferralSuccess(null);
+      return;
+    }
+
+    const candidatePassword = lastPasswordUsed ?? password;
+    const trimmedPassword = typeof candidatePassword === "string" ? candidatePassword.trim() : "";
+    if (!trimmedPassword && !isDevelopment) {
+      setReferralError("Re-enter the session-specific admin password.");
+      setReferralSuccess(null);
+      return;
+    }
+
+    setReferralLoading(true);
+    setReferralError(null);
+    setReferralSuccess(null);
+
+    try {
+      const isEdit = referralModalMode === "edit" && editingReferralId;
+      const response = await fetch("/api/admin/referrals", {
+        method: isEdit ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          password: trimmedPassword,
+          nonce: sessionNonce,
+          ...(isEdit && { referral_id: editingReferralId }),
+          ...(!isEdit && { user_id: referralUserId.trim() }),
+          referral_code: referralCode.trim(),
+          commission_percentage: commissionValue,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Unable to ${isEdit ? "update" : "create"} referral.`);
+      }
+
+      await fetchAdminData(trimmedPassword);
+      setReferralSuccess(`Referral ${isEdit ? "updated" : "created"} successfully.`);
+      if (!isEdit) {
+        setReferralUserId("");
+        setReferralCode("");
+        setReferralCommission("10");
+      }
+    } catch (err) {
+      setReferralError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setReferralLoading(false);
+    }
+  };
+
+  // Payments modal functions
+  const openPaymentsModal = (referral: GenericSupabaseRow) => {
+    setSelectedReferralForPayments(referral);
+    setPaymentsModalOpen(true);
+  };
+
+  const closePaymentsModal = () => {
+    setPaymentsModalOpen(false);
+    setSelectedReferralForPayments(null);
+  };
+
+  // Calculate unpaid amount for a referral
+  const getUnpaidAmount = (referral: GenericSupabaseRow): number => {
+    const payments = referral.referral_payments as Array<{
+      amountToPay: number;
+      isPaid: boolean;
+    }> | null;
+    if (!payments || !Array.isArray(payments)) return 0;
+    return payments
+      .filter((p) => !p.isPaid)
+      .reduce((sum, p) => sum + (p.amountToPay || 0), 0);
+  };
+
+  // Update payment status
+  const handleUpdatePaymentStatus = async (referralId: string, paymentUserId: string, isPaid: boolean) => {
+    const candidatePassword = lastPasswordUsed ?? password;
+    const trimmedPassword = typeof candidatePassword === "string" ? candidatePassword.trim() : "";
+    if (!trimmedPassword && !isDevelopment) {
+      return;
+    }
+
+    setPaymentUpdateLoading(paymentUserId);
+
+    try {
+      const response = await fetch("/api/admin/referrals/payment-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          password: trimmedPassword,
+          nonce: sessionNonce,
+          referral_id: referralId,
+          payment_user_id: paymentUserId,
+          is_paid: isPaid,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to update payment status");
+      }
+
+      // Refresh data
+      await fetchAdminData(trimmedPassword);
+
+      // Update the selected referral for payments modal
+      if (selectedReferralForPayments) {
+        const updatedReferrals = data?.referrals ?? [];
+        const updatedReferral = updatedReferrals.find(
+          (r) => safeValue(r.referral_id) === referralId
+        );
+        if (updatedReferral) {
+          setSelectedReferralForPayments(updatedReferral);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update payment status:", err);
+    } finally {
+      setPaymentUpdateLoading(null);
+    }
   };
 
   // Create user lookup map for enriching rows with user info
@@ -661,6 +852,17 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
     }
     return filters;
   }, [errorUserOptions, errorTypeOptions]);
+
+  // User options for referral modal dropdown
+  const userSelectOptions = useMemo(() => {
+    if (!data?.users) return [];
+    return data.users
+      .filter((user) => safeValue(user.status) === "active")
+      .map((user) => ({
+        value: safeValue(user.user_id),
+        label: `${safeValue(user.full_name) || "Unknown"} (${safeValue(user.email) || "no email"})`,
+      }));
+  }, [data?.users]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-4 py-12 text-white lg:px-8">
@@ -1053,6 +1255,126 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
             ]}
           />
 
+          {/* Referrals Section */}
+          <section className="rounded-2xl border border-white/10 bg-black/40 shadow-2xl shadow-black/30 backdrop-blur">
+            <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-base font-semibold text-white">
+                    <span className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70">
+                      <Link2 className="h-5 w-5" />
+                    </span>
+                    Referrals
+                  </div>
+                  <p className="text-sm text-white/60">Manage referral codes and track commissions.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-white/60">
+                    {data.referrals.length} referrals
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openReferralModal}
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Referral
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-x-auto overflow-y-visible">
+              <table className="min-w-full divide-y divide-white/5 text-left text-sm text-white/80">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">User</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Code</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Commission</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Referrals</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Amount to Pay</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Link</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {data.referrals.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-5 text-center text-sm text-white/50" colSpan={7}>
+                        No referrals created yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.referrals.map((referral, idx) => {
+                      const unpaidAmount = getUnpaidAmount(referral);
+                      return (
+                        <tr key={`referral-${safeValue(referral.referral_id) || idx}`} className="hover:bg-white/5 transition-colors">
+                          <td className="px-4 py-3 align-top">
+                            {renderUserInfo(referral.user_id)}
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <code className="rounded bg-white/10 px-2 py-1 text-xs font-mono text-emerald-300">
+                              {safeValue(referral.referral_code)}
+                            </code>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <span className="text-amber-300 font-semibold">
+                              {safeValue(referral.commission_percentage)}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <button
+                              type="button"
+                              onClick={() => openPaymentsModal(referral)}
+                              className="inline-flex items-center gap-1 text-white hover:text-cyan-300 transition"
+                              title="View referred users"
+                            >
+                              <span className="font-semibold">
+                                {safeValue(referral.total_referrals_count) || 0}
+                              </span>
+                              {Number(safeValue(referral.total_referrals_count) || 0) > 0 && (
+                                <Eye className="h-3 w-3 ml-1" />
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            {unpaidAmount > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-rose-300 font-semibold">
+                                <DollarSign className="h-3 w-3" />
+                                {unpaidAmount.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-emerald-400 text-xs">All paid</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard.writeText(safeValue(referral.referral_link))}
+                              className="text-xs text-cyan-300 hover:text-cyan-200 underline"
+                              title="Click to copy"
+                            >
+                              Copy Link
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <button
+                              type="button"
+                              onClick={() => openEditReferralModal(referral)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white transition"
+                            >
+                              <Pencil className="h-3 w-3" />
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <Modal
             open={tokenModalOpen}
             onClose={closeTokenModal}
@@ -1101,6 +1423,210 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
               </p>
               {tokenError && <p className="text-sm text-rose-400">{tokenError}</p>}
               {tokenSuccess && <p className="text-sm text-emerald-400">{tokenSuccess}</p>}
+            </div>
+          </Modal>
+
+          {/* Referral Modal */}
+          <Modal
+            open={referralModalOpen}
+            onClose={closeReferralModal}
+            title={referralModalMode === "edit" ? "Edit Referral" : "Create Referral"}
+            actionButton={
+              <Button type="button" disabled={referralLoading} onClick={handleReferralSubmit}>
+                {referralLoading
+                  ? referralModalMode === "edit" ? "Saving..." : "Creating..."
+                  : referralModalMode === "edit" ? "Save Changes" : "Create Referral"}
+              </Button>
+            }
+          >
+            <div className="space-y-4 text-white">
+              {referralModalMode === "create" ? (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-white/80">Select User</label>
+                  <select
+                    value={referralUserId}
+                    onChange={(event) => setReferralUserId(event.target.value)}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white transition-colors hover:bg-white/10 focus:border-emerald-400 focus:bg-white/10 focus:outline-none"
+                  >
+                    <option value="" className="bg-slate-900 text-white">
+                      -- Select a user --
+                    </option>
+                    {userSelectOptions.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-slate-900 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/50">Referral Owner</p>
+                  <div className="mt-2 text-sm text-white">
+                    {renderUserInfo(referralUserId)}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white/80">Referral Code</label>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(event) => setReferralCode(event.target.value)}
+                  placeholder="e.g. CREATOR2024"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:border-emerald-400 focus:outline-none"
+                />
+                <p className="text-xs text-white/50">
+                  This will generate a link: https://studio.brmax.xyz/subscribe?r={referralCode || "CODE"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white/80">Commission Percentage (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={referralCommission}
+                  onChange={(event) => setReferralCommission(event.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/40 focus:border-emerald-400 focus:outline-none"
+                />
+                <p className="text-xs text-white/50">
+                  Percentage of subscription amount to pay for each referral.
+                </p>
+              </div>
+              {referralError && <p className="text-sm text-rose-400">{referralError}</p>}
+              {referralSuccess && <p className="text-sm text-emerald-400">{referralSuccess}</p>}
+            </div>
+          </Modal>
+
+          {/* Referral Payments Modal */}
+          <Modal
+            open={paymentsModalOpen}
+            onClose={closePaymentsModal}
+            title="Referred Users & Payments"
+            width={800}
+          >
+            <div className="space-y-4 text-white">
+              {selectedReferralForPayments && (
+                <>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-white/50">Referral Owner</p>
+                        <div className="mt-1">{renderUserInfo(selectedReferralForPayments.user_id)}</div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-wide text-white/50">Total Unpaid</p>
+                        <p className="text-xl font-bold text-rose-300">
+                          ${getUnpaidAmount(selectedReferralForPayments).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const payments = selectedReferralForPayments.referral_payments as Array<{
+                      userId: string;
+                      subscriptionId: string;
+                      subscriptionAmount: number;
+                      paymentPercentage: number;
+                      amountToPay: number;
+                      isPaid: boolean;
+                      paidAt: string | null;
+                    }> | null;
+
+                    if (!payments || payments.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-white/50">
+                          No referred users yet.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-xs uppercase tracking-wide text-white/50">
+                          Referred Users ({payments.length})
+                        </p>
+                        <div className="space-y-2">
+                          {payments.map((payment, idx) => (
+                            <div
+                              key={`${payment.userId}-${idx}`}
+                              className={`rounded-xl border p-4 ${
+                                payment.isPaid
+                                  ? "border-emerald-500/30 bg-emerald-500/5"
+                                  : "border-white/10 bg-white/5"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  {renderUserInfo(payment.userId)}
+                                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-white/60">
+                                    <span>
+                                      Subscription: ${payment.subscriptionAmount?.toFixed(2) || "0.00"}
+                                    </span>
+                                    <span>
+                                      Commission: {payment.paymentPercentage}%
+                                    </span>
+                                    <span className={payment.isPaid ? "text-emerald-400" : "text-amber-300"}>
+                                      Amount: ${payment.amountToPay?.toFixed(2) || "0.00"}
+                                    </span>
+                                    {payment.paidAt && (
+                                      <span className="text-emerald-400">
+                                        Paid: {formatDate(payment.paidAt)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex-shrink-0">
+                                  {payment.isPaid ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleUpdatePaymentStatus(
+                                          safeValue(selectedReferralForPayments.referral_id),
+                                          payment.userId,
+                                          false
+                                        )
+                                      }
+                                      disabled={paymentUpdateLoading === payment.userId}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition"
+                                    >
+                                      {paymentUpdateLoading === payment.userId ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : null}
+                                      Mark Unpaid
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleUpdatePaymentStatus(
+                                          safeValue(selectedReferralForPayments.referral_id),
+                                          payment.userId,
+                                          true
+                                        )
+                                      }
+                                      disabled={paymentUpdateLoading === payment.userId}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition"
+                                    >
+                                      {paymentUpdateLoading === payment.userId ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : null}
+                                      Mark Paid
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
             </div>
           </Modal>
 

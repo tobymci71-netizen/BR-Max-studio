@@ -26,4 +26,5 @@ export interface AdminOverviewResponse {
   users: GenericSupabaseRow[];
   tokenTransactions: GenericSupabaseRow[];
   errors: GenericSupabaseRow[];
+  referrals: GenericSupabaseRow[];
 }

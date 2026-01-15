@@ -36,11 +36,13 @@ export async function POST(req: NextRequest) {
       usersResult,
       tokensResult,
       errorsResult,
+      referralsResult,
     ] = await Promise.all([
       fetchTable("render_jobs"),
       fetchTable("users"),
       fetchTable("token_transactions"),
       fetchTable("render_errors"),
+      fetchTable("referrals"),
     ]);
 
     const results = {
@@ -48,6 +50,7 @@ export async function POST(req: NextRequest) {
       users: unwrapResult(usersResult, "users"),
       tokenTransactions: unwrapResult(tokensResult, "token_transactions"),
       errors: unwrapResult(errorsResult, "render_errors"),
+      referrals: unwrapResult(referralsResult, "referrals"),
     };
 
     const jobStatusCounts = results.jobs.reduce<Record<string, number>>((acc, job) => {
