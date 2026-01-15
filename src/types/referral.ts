@@ -12,6 +12,11 @@ export interface ReferralPayment {
 }
 
 /**
+ * Referral status type
+ */
+export type ReferralStatus = "active" | "inactive";
+
+/**
  * Main Referrals table interface
  */
 export interface Referral {
@@ -24,6 +29,7 @@ export interface Referral {
   referred_user_ids: string[]; // Array of user IDs (latest first)
   paid_user_ids: string[]; // Array of user IDs who've been paid
   referral_payments: ReferralPayment[]; // Array of payment objects
+  status: ReferralStatus; // active or inactive
   created_at: string; // ISO date string
   updated_at: string; // ISO date string
 }

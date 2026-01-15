@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
     referred_user_ids: [],
     paid_user_ids: [],
     referral_payments: [],
+    status: "active",
     created_at: now,
     updated_at: now,
   };
@@ -198,5 +199,129 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     console.error("[admin referrals] Unexpected error:", error);
     return NextResponse.json({ error: "Unable to update referral" }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH - Update referral status (activate/deactivate)
+ */
+export async function PATCH(req: NextRequest) {
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
+
+  const auth = validateAdminAuth(payload);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status });
+  }
+
+  const data = payload as Record<string, unknown>;
+  const referral_id = typeof data.referral_id === "string" ? data.referral_id.trim() : "";
+  const status = data.status === "active" ? "active" : data.status === "inactive" ? "inactive" : null;
+
+  if (!referral_id) {
+    return NextResponse.json({ error: "Missing referral_id" }, { status: 400 });
+  }
+
+  if (!status) {
+    return NextResponse.json({ error: "Invalid status. Must be 'active' or 'inactive'" }, { status: 400 });
+  }
+
+  try {
+    const { data: updated, error } = await supabaseAdmin
+      .from("referrals")
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("referral_id", referral_id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[admin referrals] Status update error:", error);
+      return NextResponse.json({ error: "Failed to update referral status" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, referral: updated });
+  } catch (error) {
+    console.error("[admin referrals] Unexpected error:", error);
+    return NextResponse.json({ error: "Unable to update referral status" }, { status: 500 });
+  }
+}
+
+interface ReferralPayment {
+  amountToPay: number;
+  isPaid: boolean;
+}
+
+/**
+ * DELETE - Delete a referral (only if all payments are paid)
+ */
+export async function DELETE(req: NextRequest) {
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+  }
+
+  const auth = validateAdminAuth(payload);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: auth.status });
+  }
+
+  const data = payload as Record<string, unknown>;
+  const referral_id = typeof data.referral_id === "string" ? data.referral_id.trim() : "";
+
+  if (!referral_id) {
+    return NextResponse.json({ error: "Missing referral_id" }, { status: 400 });
+  }
+
+  try {
+    // Fetch the referral to check for unpaid amounts
+    const { data: referral, error: fetchError } = await supabaseAdmin
+      .from("referrals")
+      .select("*")
+      .eq("referral_id", referral_id)
+      .single();
+
+    if (fetchError || !referral) {
+      return NextResponse.json({ error: "Referral not found" }, { status: 404 });
+    }
+
+    // Calculate unpaid amount
+    const payments = (referral.referral_payments || []) as ReferralPayment[];
+    const unpaidAmount = payments
+      .filter((p) => !p.isPaid)
+      .reduce((sum, p) => sum + (p.amountToPay || 0), 0);
+
+    if (unpaidAmount > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete referral with unpaid amount ($${unpaidAmount.toFixed(2)}). Please mark all payments as paid first or deactivate the referral instead.`
+        },
+        { status: 400 }
+      );
+    }
+
+    // Delete the referral
+    const { error: deleteError } = await supabaseAdmin
+      .from("referrals")
+      .delete()
+      .eq("referral_id", referral_id);
+
+    if (deleteError) {
+      console.error("[admin referrals] Delete error:", deleteError);
+      return NextResponse.json({ error: "Failed to delete referral" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, message: "Referral deleted successfully" });
+  } catch (error) {
+    console.error("[admin referrals] Unexpected error:", error);
+    return NextResponse.json({ error: "Unable to delete referral" }, { status: 500 });
   }
 }

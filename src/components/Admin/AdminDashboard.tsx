@@ -14,9 +14,11 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Power,
   RefreshCcw,
   ShieldCheck,
   Target,
+  Trash2,
   Users,
 } from "lucide-react";
 import type { AdminOverviewResponse, GenericSupabaseRow } from "@/types/admin";
@@ -369,6 +371,10 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
   const [selectedReferralForPayments, setSelectedReferralForPayments] = useState<GenericSupabaseRow | null>(null);
   const [paymentUpdateLoading, setPaymentUpdateLoading] = useState<string | null>(null);
 
+  // Referral status/delete state
+  const [referralActionLoading, setReferralActionLoading] = useState<string | null>(null);
+  const [deleteConfirmReferralId, setDeleteConfirmReferralId] = useState<string | null>(null);
+
   const fetchAdminData = useCallback(async (passwordToUse?: string) => {
     setLoading(true);
     setError(null);
@@ -676,23 +682,150 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
         throw new Error(payload?.error ?? "Failed to update payment status");
       }
 
-      // Refresh data
-      await fetchAdminData(trimmedPassword);
-
-      // Update the selected referral for payments modal
+      // Optimistically update the local state immediately
       if (selectedReferralForPayments) {
-        const updatedReferrals = data?.referrals ?? [];
-        const updatedReferral = updatedReferrals.find(
-          (r) => safeValue(r.referral_id) === referralId
-        );
-        if (updatedReferral) {
-          setSelectedReferralForPayments(updatedReferral);
+        const payments = selectedReferralForPayments.referral_payments as Array<{
+          userId: string;
+          subscriptionId: string;
+          subscriptionAmount: number;
+          paymentPercentage: number;
+          amountToPay: number;
+          isPaid: boolean;
+          paidAt: string | null;
+        }> | null;
+
+        if (payments) {
+          const updatedPayments = payments.map((p) =>
+            p.userId === paymentUserId
+              ? { ...p, isPaid, paidAt: isPaid ? new Date().toISOString() : null }
+              : p
+          );
+
+          setSelectedReferralForPayments({
+            ...selectedReferralForPayments,
+            referral_payments: updatedPayments,
+          });
         }
       }
+
+      // Update the main data state as well
+      if (data?.referrals) {
+        const updatedReferrals = data.referrals.map((r) => {
+          if (safeValue(r.referral_id) !== referralId) return r;
+
+          const payments = r.referral_payments as Array<{
+            userId: string;
+            subscriptionId: string;
+            subscriptionAmount: number;
+            paymentPercentage: number;
+            amountToPay: number;
+            isPaid: boolean;
+            paidAt: string | null;
+          }> | null;
+
+          if (!payments) return r;
+
+          const updatedPayments = payments.map((p) =>
+            p.userId === paymentUserId
+              ? { ...p, isPaid, paidAt: isPaid ? new Date().toISOString() : null }
+              : p
+          );
+
+          return {
+            ...r,
+            referral_payments: updatedPayments,
+          };
+        });
+
+        setData({
+          ...data,
+          referrals: updatedReferrals,
+        });
+      }
+
+      // Refresh data in background to ensure consistency
+      fetchAdminData(trimmedPassword);
     } catch (err) {
       console.error("Failed to update payment status:", err);
+      // Revert optimistic update on error by refreshing
+      await fetchAdminData(trimmedPassword);
     } finally {
       setPaymentUpdateLoading(null);
+    }
+  };
+
+  // Toggle referral status (active/inactive)
+  const handleToggleReferralStatus = async (referralId: string, currentStatus: string) => {
+    const candidatePassword = lastPasswordUsed ?? password;
+    const trimmedPassword = typeof candidatePassword === "string" ? candidatePassword.trim() : "";
+    if (!trimmedPassword && !isDevelopment) {
+      return;
+    }
+
+    setReferralActionLoading(referralId);
+
+    try {
+      const newStatus = currentStatus === "active" ? "inactive" : "active";
+      const response = await fetch("/api/admin/referrals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          password: trimmedPassword,
+          nonce: sessionNonce,
+          referral_id: referralId,
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error ?? "Failed to update status");
+      }
+
+      await fetchAdminData(trimmedPassword);
+    } catch (err) {
+      console.error("Failed to update referral status:", err);
+    } finally {
+      setReferralActionLoading(null);
+    }
+  };
+
+  // Delete referral
+  const handleDeleteReferral = async (referralId: string) => {
+    const candidatePassword = lastPasswordUsed ?? password;
+    const trimmedPassword = typeof candidatePassword === "string" ? candidatePassword.trim() : "";
+    if (!trimmedPassword && !isDevelopment) {
+      return;
+    }
+
+    setReferralActionLoading(referralId);
+
+    try {
+      const response = await fetch("/api/admin/referrals", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          password: trimmedPassword,
+          nonce: sessionNonce,
+          referral_id: referralId,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        alert(payload?.error ?? "Failed to delete referral");
+        return;
+      }
+
+      setDeleteConfirmReferralId(null);
+      await fetchAdminData(trimmedPassword);
+    } catch (err) {
+      console.error("Failed to delete referral:", err);
+    } finally {
+      setReferralActionLoading(null);
     }
   };
 
@@ -1289,6 +1422,7 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
                   <tr>
                     <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">User</th>
                     <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Code</th>
+                    <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Status</th>
                     <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Commission</th>
                     <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Referrals</th>
                     <th className="px-4 py-3 font-medium uppercase tracking-wide text-xs text-white/60">Amount to Pay</th>
@@ -1299,22 +1433,40 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
                 <tbody className="divide-y divide-white/5">
                   {data.referrals.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-5 text-center text-sm text-white/50" colSpan={7}>
+                      <td className="px-4 py-5 text-center text-sm text-white/50" colSpan={8}>
                         No referrals created yet.
                       </td>
                     </tr>
                   ) : (
                     data.referrals.map((referral, idx) => {
                       const unpaidAmount = getUnpaidAmount(referral);
+                      const referralId = safeValue(referral.referral_id);
+                      const status = safeValue(referral.status) || "active";
+                      const isLoading = referralActionLoading === referralId;
+                      const isDeleting = deleteConfirmReferralId === referralId;
+
                       return (
-                        <tr key={`referral-${safeValue(referral.referral_id) || idx}`} className="hover:bg-white/5 transition-colors">
+                        <tr
+                          key={`referral-${referralId || idx}`}
+                          className={`hover:bg-white/5 transition-colors ${status === "inactive" ? "opacity-60" : ""}`}
+                        >
                           <td className="px-4 py-3 align-top">
                             {renderUserInfo(referral.user_id)}
                           </td>
                           <td className="px-4 py-3 align-top">
-                            <code className="rounded bg-white/10 px-2 py-1 text-xs font-mono text-emerald-300">
+                            <code className={`rounded px-2 py-1 text-xs font-mono ${status === "active" ? "bg-white/10 text-emerald-300" : "bg-white/5 text-white/50 line-through"}`}>
                               {safeValue(referral.referral_code)}
                             </code>
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                              status === "active"
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : "bg-zinc-500/20 text-zinc-400"
+                            }`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${status === "active" ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                              {status === "active" ? "Active" : "Inactive"}
+                            </span>
                           </td>
                           <td className="px-4 py-3 align-top">
                             <span className="text-amber-300 font-semibold">
@@ -1357,14 +1509,60 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
                             </button>
                           </td>
                           <td className="px-4 py-3 align-top">
-                            <button
-                              type="button"
-                              onClick={() => openEditReferralModal(referral)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white transition"
-                            >
-                              <Pencil className="h-3 w-3" />
-                              Edit
-                            </button>
+                            <div className="flex items-center gap-1">
+                              {isDeleting ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteReferral(referralId)}
+                                    disabled={isLoading}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition"
+                                  >
+                                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                    Confirm
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteConfirmReferralId(null)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10 transition"
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleReferralStatus(referralId, status)}
+                                    disabled={isLoading}
+                                    className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition disabled:opacity-50 ${
+                                      status === "active"
+                                        ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                                        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                                    }`}
+                                    title={status === "active" ? "Deactivate referral" : "Activate referral"}
+                                  >
+                                    {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditReferralModal(referral)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10 hover:text-white transition"
+                                    title="Edit referral"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteConfirmReferralId(referralId)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/20 transition"
+                                    title="Delete referral"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

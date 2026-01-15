@@ -43,6 +43,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Referral not found" }, { status: 404 });
     }
 
+    // Check if referral is active
+    if (referral.status !== "active") {
+      console.error("[record-subscription] Referral is inactive:", referral_code);
+      return NextResponse.json({ error: "Referral is inactive" }, { status: 400 });
+    }
+
     // Check if user already referred
     const existingReferredUserIds = referral.referred_user_ids || [];
     if (existingReferredUserIds.includes(referred_user_id)) {

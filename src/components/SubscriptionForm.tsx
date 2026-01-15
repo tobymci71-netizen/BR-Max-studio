@@ -80,11 +80,15 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
     setError("")
 
     try {
+      // Always check sessionStorage for referral code
+      const storedReferralCode = sessionStorage.getItem("referral_code");
+      
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           packageId: selectedPackage.id,
+          referralCode: storedReferralCode || undefined,
         }),
       })
 

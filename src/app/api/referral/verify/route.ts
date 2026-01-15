@@ -17,12 +17,17 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from("referrals")
-      .select("referral_id, referral_code, user_id")
+      .select("referral_id, referral_code, user_id, status")
       .eq("referral_code", code)
       .single();
 
     if (error || !data) {
       return NextResponse.json({ valid: false, error: "Invalid referral code" }, { status: 404 });
+    }
+
+    // Check if referral is active
+    if (data.status !== "active") {
+      return NextResponse.json({ valid: false, error: "This referral code is no longer active" }, { status: 404 });
     }
 
     // Get the referrer's name for display

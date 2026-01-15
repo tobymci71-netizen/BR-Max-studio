@@ -30,7 +30,14 @@ function SubscribePageContent() {
   // Verify referral code on mount (silently in background)
   useEffect(() => {
     const verifyReferral = async () => {
-      if (!referralCodeParam) return;
+      if (!referralCodeParam) {
+        // Check if there's a referral code in sessionStorage
+        const storedCode = sessionStorage.getItem("referral_code");
+        if (storedCode) {
+          setReferralCode(storedCode);
+        }
+        return;
+      }
 
       try {
         const response = await fetch(`/api/referral/verify?code=${encodeURIComponent(referralCodeParam)}`);
@@ -38,9 +45,15 @@ function SubscribePageContent() {
 
         if (data.valid) {
           setReferralCode(referralCodeParam);
+          // Save to sessionStorage for persistence
+          sessionStorage.setItem("referral_code", referralCodeParam);
+        } else {
+          // Clear invalid code from sessionStorage
+          sessionStorage.removeItem("referral_code");
         }
       } catch (err) {
         console.error("Failed to verify referral:", err);
+        sessionStorage.removeItem("referral_code");
       }
     };
 
@@ -102,12 +115,16 @@ function SubscribePageContent() {
     setError("");
 
     try {
+      // Always check sessionStorage for referral code
+      const storedReferralCode = sessionStorage.getItem("referral_code");
+      const finalReferralCode = referralCode || storedReferralCode || undefined;
+
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           packageId: selectedPackage.id,
-          referralCode: referralCode || undefined,
+          referralCode: finalReferralCode,
         }),
       });
 

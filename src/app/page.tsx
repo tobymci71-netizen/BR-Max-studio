@@ -10,6 +10,7 @@ import { VoiceSlotWarningPopup } from "../components/VoiceSlotWarningPopup";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 import { defaultMyCompProps } from "@/types/constants";
 import type { MonetizationPreviewContext } from "@/helpers/previewBuilder";
@@ -31,10 +32,36 @@ const IMessagesStudio = dynamic(
 
 export default function DemoPage() {
   const { isSignedIn } = useUser();
+  const searchParams = useSearchParams();
   const studioHardPaywall = process.env.NEXT_PUBLIC_STUDIO_HARD_PAYWALL === "true";
   const [studioAccessState, setStudioAccessState] = useState<
     "pending" | "allowed" | "blocked"
   >(studioHardPaywall ? "pending" : "allowed");
+
+  // Handle referral code from URL parameter
+  useEffect(() => {
+    const referralCodeParam = searchParams.get("r");
+    if (referralCodeParam) {
+      // Verify and save referral code to sessionStorage
+      const verifyReferral = async () => {
+        try {
+          const response = await fetch(`/api/referral/verify?code=${encodeURIComponent(referralCodeParam)}`);
+          const data = await response.json();
+
+          if (data.valid) {
+            sessionStorage.setItem("referral_code", referralCodeParam);
+          } else {
+            sessionStorage.removeItem("referral_code");
+          }
+        } catch (err) {
+          console.error("Failed to verify referral:", err);
+          sessionStorage.removeItem("referral_code");
+        }
+      };
+
+      verifyReferral();
+    }
+  }, [searchParams]);
   const {
     isGenerating,
     generateVideo,

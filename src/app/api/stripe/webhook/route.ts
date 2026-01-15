@@ -559,6 +559,12 @@ async function recordReferralSubscription(
     return;
   }
 
+  // Check if referral is active
+  if (referral.status !== "active") {
+    console.log("⚠️ Referral is inactive, not recording:", referralCode);
+    return;
+  }
+
   // Check if user already referred
   const existingReferredUserIds = referral.referred_user_ids || [];
   if (existingReferredUserIds.includes(referredUserId)) {
