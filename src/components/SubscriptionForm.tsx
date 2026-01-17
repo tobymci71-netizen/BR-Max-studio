@@ -264,6 +264,9 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
 
                   <div className="mb-4">
                     <div className="flex items-baseline gap-1.5 mb-1">
+                      <span className="text-lg font-medium text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-400/60 mr-1">
+                         ${(pricePerMonth + 20).toFixed(2)}
+                      </span>
                       <span className="text-lg text-zinc-500 dark:text-zinc-400">$</span>
                       <span
                         className={`text-3xl font-bold ${
