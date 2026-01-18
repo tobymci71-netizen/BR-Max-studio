@@ -7,7 +7,6 @@ import SplashCursor from "@/components/SplashCursor";
 import { AppProvider } from "@/context/AppContext";
 import ScrollRestoration from "@/components/ScrollRestoration";
 import RootLayoutShell from "@/components/RootLayoutShell";
-import MobileBlocker from "@/components/MobileBlocker";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://brmax.xyz"),
