@@ -145,6 +145,11 @@ const Navbar = () => {
 
   return (
     <>
+      {isSmallScreenWidth && (
+        <div className="w-full bg-yellow-500 border-b border-yellow-600 text-black py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+          <span>This studio works best on a laptop or desktop. Please use a larger screen for the best experience.</span>
+        </div>
+      )}
       {maintenance.isMaintenance && (
         <div className="w-full bg-[#503d08] border-b border-yellow-300 text-white py-2.5 px-4 flex items-center gap-2 text-sm font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
           <span className="inline-block w-2 h-2 rounded-full bg-yellow-600 animate-pulse" />
