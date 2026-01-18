@@ -40,6 +40,18 @@ const Navbar = () => {
   const [tokens, setTokens] = useState<number | null>(null);
   const [loadingTokens, setLoadingTokens] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false)
+  const [isSmallScreenWidth, setIsSmallScreenWidth] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      setIsSmallScreenWidth(window.innerWidth < 1024);
+    };
+
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
 
   const fetchSubscription = useCallback(async () => {
     if (!user) {
@@ -204,27 +216,33 @@ const Navbar = () => {
 
             </SignedIn>
 
-            <button
-              onClick={toggleFunMode}
-              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-300
-                ${
-                  isFunModeOn
-                    ? "bg-gradient-to-r from-pink-500 to-yellow-400 text-white shadow-lg shadow-pink-400/30 hover:scale-[1.05]"
-                    : "border border-gray-200 bg-white/60 text-gray-700 hover:border-gray-300 hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:border-gray-600"
-                }`}
-            >
-              {isFunModeOn ? (
+            { 
+              !isSmallScreenWidth && ( 
                 <>
-                  <Sparkles className="h-4 w-4" />
-                  Fun Mode ON
+                  <button
+                    onClick={toggleFunMode}
+                    className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-300
+                      ${
+                        isFunModeOn
+                          ? "bg-gradient-to-r from-pink-500 to-yellow-400 text-white shadow-lg shadow-pink-400/30 hover:scale-[1.05]"
+                          : "border border-gray-200 bg-white/60 text-gray-700 hover:border-gray-300 hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:border-gray-600"
+                      }`}
+                  >
+                    {isFunModeOn ? (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Fun Mode ON
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="h-4 w-4" />
+                        Fun Mode OFF
+                      </>
+                    )}
+                  </button>
                 </>
-              ) : (
-                <>
-                  <Moon className="h-4 w-4" />
-                  Fun Mode OFF
-                </>
-              )}
-            </button>
+              )
+            }
 
             <SignedOut>
               <div className="flex items-center gap-2">

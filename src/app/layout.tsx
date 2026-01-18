@@ -81,9 +81,7 @@ export default function RootLayout({
           <SplashCursor />
           <ScrollRestoration />
           <body className="min-h-screen flex flex-col bg-transparent text-white antialiased">
-            <MobileBlocker>
               <RootLayoutShell>{children}</RootLayoutShell>
-            </MobileBlocker>
           </body>
         </AppProvider>
       </html>
