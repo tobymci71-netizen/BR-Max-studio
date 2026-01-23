@@ -24,6 +24,7 @@ import {
   Trash2,
   Plus,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { useStudioForm } from "../StudioProvider";
 import { useScriptParser } from "../hooks/useScriptParser";
@@ -88,8 +89,9 @@ const imageUploadsCache: Record<string, File | null> = {};
 type SimpleRow = {
   id: string;
   side: "me" | "them";
-  type: "text" | "command";
+  type: "text" | "command" | "image";
   content: string;
+  imageName?: string;
 };
 
 function generateRowId() {
@@ -105,8 +107,25 @@ function parseScriptToRows(scriptText: string): SimpleRow[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Check if it's a command (starts with > and ends with <)
+    // Check if it's a command (starts with > and ends with <) but NOT an image command
     if (trimmed.startsWith(">") && trimmed.endsWith("<")) {
+      // Check if it's an image command: > image name <
+      const imageCommandMatch = trimmed.match(/^>\s*image\s+(.+?)\s*<$/i);
+      if (imageCommandMatch) {
+        if (currentRow) {
+          rows.push(currentRow);
+          currentRow = null;
+        }
+        rows.push({
+          id: generateRowId(),
+          side: "me",
+          type: "image",
+          content: "",
+          imageName: imageCommandMatch[1].trim(),
+        });
+        continue;
+      }
+
       if (currentRow) {
         rows.push(currentRow);
         currentRow = null;
@@ -128,6 +147,22 @@ function parseScriptToRows(scriptText: string): SimpleRow[] {
       }
       const side = match[1].toLowerCase() as "me" | "them";
       const content = match[2] || "";
+
+      // Check for image syntax: {image: name} or > image name <
+      const imageMatch = content.match(/\{image:\s*(.+?)\s*\}/) ||
+                         content.match(/>\s*image\s+(.+?)\s*</i);
+      if (imageMatch) {
+        currentRow = null;
+        rows.push({
+          id: generateRowId(),
+          side,
+          type: "image",
+          content: "",
+          imageName: imageMatch[1].trim(),
+        });
+        continue;
+      }
+
       currentRow = {
         id: generateRowId(),
         side,
@@ -156,6 +191,12 @@ function rowsToScriptText(rows: SimpleRow[]): string {
         if (!cmd.startsWith(">")) cmd = "> " + cmd;
         if (!cmd.endsWith("<")) cmd = cmd + " <";
         return cmd;
+      }
+      if (row.type === "image") {
+        // Image format: me: {image: name} or them: {image: name}
+        const prefix = row.side === "me" ? "me:" : "them:";
+        const imageName = row.imageName || "unnamed";
+        return `${prefix} {image: ${imageName}}`;
       }
       // Text message
       const prefix = row.side === "me" ? "me:" : "them:";
@@ -191,6 +232,7 @@ export function ScriptStep() {
     () => ({ ...imageUploadsCache }),
   );
   const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
+  const [imagePreviewModal, setImagePreviewModal] = useState<{ name: string; url: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const tableBodyRef = useRef<HTMLDivElement | null>(null);
@@ -400,11 +442,20 @@ export function ScriptStep() {
 
   const imagePlaceholders = useMemo(() => {
     const names = new Set<string>();
+
     // Match > image filename < pattern anywhere in the script
-    const regex = />\s*image\s+(.+?)\s*</gi;
+    const regex1 = />\s*image\s+(.+?)\s*</gi;
     let match: RegExpExecArray | null;
 
-    while ((match = regex.exec(scriptText)) !== null) {
+    while ((match = regex1.exec(scriptText)) !== null) {
+      const candidate = match[1]?.trim();
+      if (!candidate) continue;
+      names.add(candidate);
+    }
+
+    // Match {image: name} pattern anywhere in the script
+    const regex2 = /\{image:\s*(.+?)\s*\}/gi;
+    while ((match = regex2.exec(scriptText)) !== null) {
       const candidate = match[1]?.trim();
       if (!candidate) continue;
       names.add(candidate);
@@ -465,6 +516,15 @@ export function ScriptStep() {
         } catch (error) {
           console.error("Failed to save image to localStorage:", error);
         }
+
+        // Update formValues.messages with the new imageUrl for immediate preview update
+        const updatedMessages = formValues.messages.map((msg) => {
+          if (msg.type === "image" && msg.imageName === placeholder) {
+            return { ...msg, imageUrl: dataUrl };
+          }
+          return msg;
+        });
+        updateFormValues({ messages: updatedMessages });
       };
       reader.readAsDataURL(file);
     } else {
@@ -479,8 +539,17 @@ export function ScriptStep() {
       } catch (error) {
         console.error("Failed to remove image from localStorage:", error);
       }
+
+      // Clear imageUrl from messages
+      const updatedMessages = formValues.messages.map((msg) => {
+        if (msg.type === "image" && msg.imageName === placeholder) {
+          return { ...msg, imageUrl: "" };
+        }
+        return msg;
+      });
+      updateFormValues({ messages: updatedMessages });
     }
-  }, []);
+  }, [formValues.messages, updateFormValues]);
 
   // Simple view handlers
   const updateSimpleRows = useCallback(
@@ -592,10 +661,19 @@ export function ScriptStep() {
   );
 
   const handleChangeType = useCallback(
-    (id: string, newType: "text" | "command") => {
+    (id: string, newType: "text" | "command" | "image") => {
       updateSimpleRows(
         simpleRows.map((row) => {
           if (row.id !== id) return row;
+
+          // If changing to image, set default image name
+          if (newType === "image") {
+            return { ...row, type: newType, content: "", imageName: row.imageName || "image1" };
+          }
+
+          // If changing from image to other type, clear imageName
+          const wasImage = row.type === "image";
+
           let content = row.content;
           // If changing to command, ensure brackets
           if (newType === "command") {
@@ -607,7 +685,8 @@ export function ScriptStep() {
           if (newType === "text" && row.type === "command") {
             content = content.replace(/^>\s*/, "").replace(/\s*<$/, "");
           }
-          return { ...row, type: newType, content };
+
+          return { ...row, type: newType, content, imageName: wasImage ? undefined : row.imageName };
         })
       );
     },
@@ -619,6 +698,16 @@ export function ScriptStep() {
       // Update local state only (no parsing)
       setSimpleRows((prev) =>
         prev.map((row) => (row.id === id ? { ...row, content } : row))
+      );
+    },
+    []
+  );
+
+  const handleChangeImageName = useCallback(
+    (id: string, imageName: string) => {
+      // Update local state only (no parsing)
+      setSimpleRows((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, imageName } : row))
       );
     },
     []
@@ -1026,15 +1115,21 @@ export function ScriptStep() {
                         background:
                           row.type === "command"
                             ? "rgba(168,85,247,0.2)"
-                            : row.side === "me"
-                              ? "rgba(52,211,153,0.25)"
-                              : "rgba(96,165,250,0.25)",
+                            : row.type === "image"
+                              ? row.side === "me"
+                                ? "rgba(168,85,247,0.25)"
+                                : "rgba(168,85,247,0.25)"
+                              : row.side === "me"
+                                ? "rgba(52,211,153,0.25)"
+                                : "rgba(96,165,250,0.25)",
                         color:
                           row.type === "command"
                             ? "#c4b5fd"
-                            : row.side === "me"
-                              ? "#6ee7b7"
-                              : "#93c5fd",
+                            : row.type === "image"
+                              ? "#d8b4fe"
+                              : row.side === "me"
+                                ? "#6ee7b7"
+                                : "#93c5fd",
                         opacity: row.type === "command" ? 0.6 : 1,
                       }}
                       title={row.type === "command" ? "Commands don't have a side" : "Click to toggle side"}
@@ -1058,7 +1153,7 @@ export function ScriptStep() {
                       <select
                         value={row.type}
                         onChange={(e) =>
-                          handleChangeType(row.id, e.target.value as "text" | "command")
+                          handleChangeType(row.id, e.target.value as "text" | "command" | "image")
                         }
                         style={{
                           padding: "8px 10px",
@@ -1073,29 +1168,71 @@ export function ScriptStep() {
                       >
                         <option value="text">Text</option>
                         <option value="command">Command</option>
+                        <option value="image">Image</option>
                       </select>
 
-                      {/* Content Input */}
-                      <input
-                        type="text"
-                        value={row.content}
-                        onChange={(e) => handleChangeContent(row.id, e.target.value)}
-                        onBlur={handleContentBlur}
-                        placeholder={
-                          row.type === "command"
-                            ? "> Conversation with Name <"
-                            : "Enter message..."
-                        }
-                        style={{
-                          flex: 1,
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          background: "rgba(0,0,0,0.4)",
-                          color: "#fff",
-                          fontSize: 13,
-                        }}
-                      />
+                      {/* Content Input - changes based on type */}
+                      {row.type === "image" ? (
+                        <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center" }}>
+                          <input
+                            type="text"
+                            value={row.imageName || ""}
+                            onChange={(e) => handleChangeImageName(row.id, e.target.value)}
+                            onBlur={handleContentBlur}
+                            placeholder="Image name (e.g., catImage)"
+                            style={{
+                              flex: 1,
+                              padding: "8px 12px",
+                              borderRadius: 8,
+                              border: "1px solid rgba(168,85,247,0.4)",
+                              background: "rgba(168,85,247,0.1)",
+                              color: "#fff",
+                              fontSize: 13,
+                            }}
+                          />
+                          {row.imageName && imagePreviewUrls[row.imageName] && (
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 6,
+                                overflow: "hidden",
+                                border: "1px solid rgba(255,255,255,0.2)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Image
+                                src={imagePreviewUrls[row.imageName]}
+                                alt={row.imageName}
+                                width={36}
+                                height={36}
+                                style={{ objectFit: "cover", width: "100%", height: "100%" }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={row.content}
+                          onChange={(e) => handleChangeContent(row.id, e.target.value)}
+                          onBlur={handleContentBlur}
+                          placeholder={
+                            row.type === "command"
+                              ? "> Conversation with Name <"
+                              : "Enter message..."
+                          }
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            background: "rgba(0,0,0,0.4)",
+                            color: "#fff",
+                            fontSize: 13,
+                          }}
+                        />
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -1297,9 +1434,9 @@ export function ScriptStep() {
 
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-                gap: 10,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
               }}
             >
               {imagePlaceholders.map((name) => {
@@ -1308,76 +1445,82 @@ export function ScriptStep() {
                 const previewUrl = imagePreviewUrls[name];
 
                 return (
-                  <label
+                  <div
                     key={name}
-                    htmlFor={uploadId}
                     style={{
-                      padding: 10,
-                      borderRadius: 10,
+                      padding: "10px 12px",
+                      borderRadius: 8,
                       background: "rgba(0,0,0,0.35)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                      cursor: "pointer",
-                      minHeight: previewUrl ? 180 : 72,
-                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: 12,
                     }}
                   >
-                    <div style={{ fontSize: 12, opacity: 0.75 }}>Image name</div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
+                    {/* Image name */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 2 }}>Image name</div>
+                      <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                    </div>
 
-                    {previewUrl && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          borderRadius: 8,
-                          overflow: "hidden",
-                          maxHeight: 120,
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          background: "rgba(0,0,0,0.5)",
-                        }}
-                      >
-                        <Image
-                          src={previewUrl}
-                          alt={name}
-                          width={320}
-                          height={120}
-                          unoptimized
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: 120,
-                            objectFit: "contain",
-                          }}
-                        />
-                      </div>
-                    )}
-
+                    {/* Status indicator */}
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        fontSize: 12,
+                        fontSize: 11,
+                        opacity: 0.7,
+                        maxWidth: 120,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <div style={{ opacity: 0.75 }}>
-                        {selectedFile ? `Selected: ${selectedFile.name}` : "Attach image file"}
-                      </div>
-                      <div
+                      {selectedFile ? selectedFile.name : previewUrl ? "Image loaded" : "No image"}
+                    </div>
+
+                    {/* Preview button */}
+                    {previewUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setImagePreviewModal({ name, url: previewUrl })}
+                        title="Preview image"
                         style={{
-                          padding: "4px 8px",
-                          borderRadius: 8,
-                          border: "1px dashed rgba(255,255,255,0.2)",
-                          color: "#d1d5db",
+                          padding: 8,
+                          borderRadius: 6,
+                          border: "1px solid rgba(167,139,250,0.4)",
+                          background: "rgba(167,139,250,0.15)",
+                          color: "#c4b5fd",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
                         }}
                       >
-                        {previewUrl ? "Change" : "Upload"}
-                      </div>
-                    </div>
+                        <Eye size={14} />
+                      </button>
+                    )}
+
+                    {/* Upload button */}
+                    <label
+                      htmlFor={uploadId}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        border: "1px dashed rgba(255,255,255,0.25)",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "#d1d5db",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Upload size={12} />
+                      {previewUrl ? "Change" : "Upload"}
+                    </label>
                     <input
                       id={uploadId}
                       type="file"
@@ -1389,7 +1532,7 @@ export function ScriptStep() {
                         event.target.value = "";
                       }}
                     />
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -2062,6 +2205,52 @@ export function ScriptStep() {
             </div>
           </div>
         </div>
+      </Modal>
+      {/* Image Preview Modal */}
+      <Modal
+        open={imagePreviewModal !== null}
+        onClose={() => setImagePreviewModal(null)}
+        title={imagePreviewModal ? `Preview: ${imagePreviewModal.name}` : "Image Preview"}
+        width={600}
+      >
+        {imagePreviewModal && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 16,
+              padding: "10px 0",
+            }}
+          >
+            <div
+              style={{
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "rgba(0,0,0,0.4)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                maxWidth: "100%",
+              }}
+            >
+              <Image
+                src={imagePreviewModal.url}
+                alt={imagePreviewModal.name}
+                width={550}
+                height={400}
+                unoptimized
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "60vh",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              Image name: <strong style={{ color: "#c4b5fd" }}>{imagePreviewModal.name}</strong>
+            </div>
+          </div>
+        )}
       </Modal>
       <style>{`
         code {

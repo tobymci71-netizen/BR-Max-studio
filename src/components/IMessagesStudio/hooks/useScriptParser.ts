@@ -63,8 +63,8 @@ export function parseScriptText(rawText: string) {
       const resolvedSpeaker = isMe ? "Me" : currentRecipientName || "Them";
       addSpeaker(resolvedSpeaker);
 
-      // Check if text contains an image command pattern: > image filename <
-      const imageMatch = text.match(/>\s*image\s+(.+?)\s*</i);
+      // Check if text contains an image command pattern: > image filename < or {image: name}
+      const imageMatch = text.match(/>\s*image\s+(.+?)\s*</i) || text.match(/\{image:\s*(.+?)\s*\}/);
       if (imageMatch && imageMatch[1]) {
         const imageName = imageMatch[1].trim();
         // Try to load image from localStorage
