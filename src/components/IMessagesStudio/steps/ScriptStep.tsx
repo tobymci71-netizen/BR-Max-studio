@@ -393,6 +393,88 @@ export function ScriptStep() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {/* Free Script Generator Card */}
+      <div
+        style={{
+          padding: 24,
+          background: "linear-gradient(135deg, rgba(167,139,250,0.12) 0%, rgba(96,165,250,0.08) 100%)",
+          border: "1px solid rgba(167,139,250,0.35)",
+          borderRadius: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h4
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              margin: 0,
+              marginBottom: 6,
+              color: "#e0e7ff",
+            }}
+          >
+            Struggling with your story idea/script?
+          </h4>
+          <p
+            style={{
+              fontSize: 14,
+              margin: 0,
+              opacity: 0.85,
+              color: "#c7d2fe",
+            }}
+          >
+            Use our <strong style={{ color: "#a5b4fc" }}>FREE</strong> script generator to create engaging conversation scripts instantly.
+          </p>
+        </div>
+        <a
+          href="https://chatgpt.com/g/g-6924c5f484d081919d8cf44d945bafc8-cyno"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            background: "#ffffff",
+            border: "none",
+            borderRadius: 12,
+            padding: "12px 20px",
+            cursor: "pointer",
+            textDecoration: "none",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+            transition: "transform 0.2s, box-shadow 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
+          }}
+        >
+          <Image
+            src="https://br-max.s3.ap-south-1.amazonaws.com/CynoBotLogo.png"
+            alt="CynoBot"
+            width={24}
+            height={24}
+            style={{ borderRadius: 4 }}
+          />
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#1f2937",
+            }}
+          >
+            Try Script Generator
+          </span>
+        </a>
+      </div>
+
       {/* Script Editor */}
       <div
         style={{
