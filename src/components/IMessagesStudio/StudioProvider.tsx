@@ -24,6 +24,7 @@ interface StudioFormContextType {
   backgroundFile: File | null;
   currentStep: number;
   errors: Record<string, string>;
+  isSubscribed: boolean;
   updateFormValues: (updates: Partial<CompositionPropsType>) => void;
   updateChatSettings: <K extends keyof CompositionPropsType["CHAT_SETTINGS"]>(
     key: K,
@@ -54,7 +55,12 @@ const StudioPreviewContext = createContext<StudioPreviewContextType | null>(
   null,
 );
 
-export function StudioProvider({ children }: { children: React.ReactNode }) {
+interface StudioProviderProps {
+  children: React.ReactNode;
+  isSubscribed?: boolean;
+}
+
+export function StudioProvider({ children, isSubscribed = false }: StudioProviderProps) {
   const [formValues, setFormValues] =
     useState<CompositionPropsType>(defaultMyCompProps);
   const [previewProps, setPreviewProps] =
@@ -302,13 +308,17 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
         durationInFrames: previewPayload.previewProps.monetization?.durationInFrames,
       });
       // Always create a fresh object so state updates even if the values are identical
-      setPreviewProps({ ...previewPayload.previewProps });
+      // Include showWatermark based on subscription status
+      setPreviewProps({
+        ...previewPayload.previewProps,
+        showWatermark: !isSubscribed,
+      });
       setDurationInFrames(previewPayload.totalFrames);
       if (bumpGeneration) {
         setPreviewGeneration((prev) => prev + 1);
       }
     },
-    [],
+    [isSubscribed],
   );
 
   const generatePreview = useCallback(() => {
@@ -443,10 +453,13 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
 
     // Build and apply preview with reset values
     const previewPayload = buildPreview(resetValues);
-    setPreviewProps(previewPayload.previewProps);
+    setPreviewProps({
+      ...previewPayload.previewProps,
+      showWatermark: !isSubscribed,
+    });
     setDurationInFrames(previewPayload.totalFrames);
     setPreviewGeneration((prev) => prev + 1);
-  }, [buildPreview]);
+  }, [buildPreview, isSubscribed]);
 
   const formContextValue = useMemo(
     () => ({
@@ -454,6 +467,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       backgroundFile,
       currentStep,
       errors,
+      isSubscribed,
       updateFormValues,
       updateChatSettings,
       setCurrentStep,
@@ -468,6 +482,7 @@ export function StudioProvider({ children }: { children: React.ReactNode }) {
       backgroundFile,
       currentStep,
       errors,
+      isSubscribed,
       updateFormValues,
       updateChatSettings,
       setCurrentStep,

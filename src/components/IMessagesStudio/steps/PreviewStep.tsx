@@ -1,8 +1,9 @@
 import React from "react";
+import { useRouter } from "next/navigation";
 import { useStudioForm, useStudioPreview } from "../StudioProvider";
 import { Button } from "../../Button";
 import { Card } from "../../Card";
-import { AlertCircle, Clock, Wand2, ArrowUpRight } from "lucide-react";
+import { AlertCircle, Clock, Wand2, ArrowUpRight, Lock } from "lucide-react";
 import {
   DEFAULT_BACKGROUND_VIDEO,
   type CompositionPropsType,
@@ -31,7 +32,8 @@ type PreviewStepProps = {
 };
 
 export function PreviewStep(props: PreviewStepProps) {
-  const { formValues, errors, setCurrentStep, validateAllSteps, backgroundFile } =
+  const router = useRouter();
+  const { formValues, errors, setCurrentStep, validateAllSteps, backgroundFile, isSubscribed } =
     useStudioForm();
   const { generatePreview, buildPreviewFromValues } = useStudioPreview();
 
@@ -46,8 +48,26 @@ export function PreviewStep(props: PreviewStepProps) {
     formValues.voices.every((v) => v.voiceId) &&
     formValues.messages.length > 0;
 
-  const generateVideo = () => {
+  const generateVideo = async () => {
     if (!isReadyToGenerate || props.finalGenerateDisabled) return;
+
+    // Check subscription status before generating
+    if (!isSubscribed) {
+      // Double-check with the API to ensure subscription status is current
+      try {
+        const response = await fetch("/api/studio-access", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok || !data?.allow) {
+          // Redirect to subscription page
+          router.push("/studio-paywall");
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to verify subscription:", error);
+        router.push("/studio-paywall");
+        return;
+      }
+    }
 
     // Build preview directly from current formValues to ensure API key is up to date
     const { previewProps: freshPreviewProps, totalFrames, monetizationContext } =
@@ -140,6 +160,47 @@ export function PreviewStep(props: PreviewStepProps) {
           ))}
         </div>
       </Card>
+
+      {!isSubscribed && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+            padding: "12px 14px",
+            background: "linear-gradient(135deg, rgba(251,191,36,0.12) 0%, rgba(245,158,11,0.08) 100%)",
+            border: "1px solid rgba(251,191,36,0.35)",
+            borderRadius: 10,
+          }}
+        >
+          <Lock size={18} style={{ color: "#fbbf24", marginTop: 2, flexShrink: 0 }} />
+          <div style={{ fontSize: 13, lineHeight: 1.45 }}>
+            <strong style={{ display: "block", marginBottom: 4, color: "#fef3c7" }}>
+              Watermark Active
+            </strong>
+            <p style={{ margin: 0, color: "#fde68a", opacity: 0.9 }}>
+              Your video preview includes a watermark. Subscribe to remove the watermark and generate videos without branding.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/studio-paywall")}
+              style={{
+                marginTop: 8,
+                padding: "8px 16px",
+                background: "rgba(251,191,36,0.2)",
+                border: "1px solid rgba(251,191,36,0.5)",
+                borderRadius: 8,
+                color: "#fef3c7",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              View Subscription Plans
+            </button>
+          </div>
+        </div>
+      )}
 
       {hasErrors && (
         <div

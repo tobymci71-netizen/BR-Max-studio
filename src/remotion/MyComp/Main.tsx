@@ -9,6 +9,7 @@ import {
   defaultMyCompProps,
 } from "../../types/constants";
 import { IMessageOverlay } from "../../components/iMessageOverlay/iMessageOverlay";
+import { Watermark } from "./Watermark";
 
 loadFont("normal", {
   subsets: ["latin"],
@@ -79,7 +80,9 @@ export const Main = ({
         CHAT_SETTINGS={chatSettings}
         monetization={monetizationSettings}
       />
-      
+
+      {/* Watermark overlay for non-subscribed users */}
+      {previewProps.showWatermark && <Watermark />}
     </AbsoluteFill>
   );
 };
