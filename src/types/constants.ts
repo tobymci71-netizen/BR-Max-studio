@@ -495,6 +495,7 @@ export const DEFAULT_BACKGROUND_VIDEO = "/background_video.mp4";
 
 export const defaultMyCompProps: CompositionPropsType = {
   enableAudio: true,
+  showWatermark: false,
   elevenLabsApiKey: "asd",
   enableSilenceTrimming: false,
   voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
