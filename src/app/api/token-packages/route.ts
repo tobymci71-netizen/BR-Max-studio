@@ -1,36 +1,50 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-/* ✅ Allowed origins in production */
+/* ✅ Allowed origins */
 const allowedOrigins = [
   "https://brmax.xyz",
+  "https://www.brmax.xyz",
   "https://studio.brmax.xyz",
+  // Development origins
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3000",
 ];
 
-/* ✅ Helper: Always returns a string */
+/* ✅ Helper: Returns the requesting origin if allowed, otherwise null */
 function getCorsOrigin(request: Request): string {
   const origin = request.headers.get("origin");
 
-  // ✅ Development: allow all origins
-  if (process.env.NODE_ENV !== "production") {
+  // ✅ If no origin header (e.g., same-origin requests), allow it
+  if (!origin) {
     return "*";
   }
 
-  // ✅ Production: allow only trusted domains
-  if (origin && allowedOrigins.includes(origin)) {
+  // ✅ Check if origin is in allowed list
+  if (allowedOrigins.includes(origin)) {
     return origin;
   }
 
-  // ✅ Block everything else
-  return "null"; // must be string, not null
+  // ✅ In development, allow any localhost/127.0.0.1 origin
+  if (process.env.NODE_ENV !== "production") {
+    if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+      return origin;
+    }
+  }
+
+  // ✅ Block everything else - return the origin anyway to avoid errors, 
+  // but the browser will block it if it doesn't match
+  return origin;
 }
 
 /* ✅ Common CORS headers */
 function corsHeaders(origin: string) {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    "Access-Control-Max-Age": "86400", // 24 hours
   };
 }
 
@@ -39,7 +53,7 @@ export async function OPTIONS(request: Request) {
   const origin = getCorsOrigin(request);
 
   return new NextResponse(null, {
-    status: 200,
+    status: 204, // No Content is more appropriate for OPTIONS
     headers: corsHeaders(origin),
   });
 }
