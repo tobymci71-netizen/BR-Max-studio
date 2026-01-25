@@ -2,7 +2,6 @@
 import {
   useEffect,
   useState,
-  useRef,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -174,43 +173,6 @@ function filterJobsByTime(jobs: RenderJob[], filter: TimeFilter): RenderJob[] {
   });
 }
 
-// ✅ API-based progress polling
-async function fetchJobProgress(jobId: string) {
-  try {
-    const res = await fetch(`/api/render/progress?jobId=${jobId}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-
-    const status = typeof data.status === "string" ? data.status : null;
-    const progress =
-      typeof data.progress === "number"
-        ? data.progress
-        : typeof data.overallProgress === "number"
-          ? Math.round(data.overallProgress * 100)
-          : null;
-
-    // consider it done when the API says done, or status says done, or we hit 100%
-    const done =
-      data?.done === true ||
-      status?.toLowerCase() === "done" ||
-      progress === 100;
-
-    return {
-      progress,
-      status,
-      stage: typeof data.stage === "string" ? data.stage : null,
-      audioCompleted: data.audioCompleted,
-      audioTotal: data.audioTotal,
-      done,
-      s3_url: typeof data.s3_url === "string" ? data.s3_url : null,
-    };
-  } catch {
-    return null;
-  }
-}
-
 /* Completely redesigned component with modern styling */
 const JobsList = forwardRef((_, ref) => {
   const { user, isLoaded } = useUser();
@@ -227,16 +189,6 @@ const JobsList = forwardRef((_, ref) => {
     requestNotificationPermission,
   } = usePageNotifications(jobs, isLoaded, hasFetchedJobs);
 
-  const [realProgressMap, setRealProgressMap] = useState<
-    Record<string, number>
-  >({});
-  const [displayProgressMap, setDisplayProgressMap] = useState<
-    Record<string, number>
-  >({});
-  const [jsonStatusMap, setJsonStatusMap] = useState<Record<string, string>>(
-    {},
-  );
-
   // NEW: inline/global error states
   const [inlineError, setInlineError] = useState<string | null>(null);
 
@@ -248,9 +200,6 @@ const JobsList = forwardRef((_, ref) => {
   const [flagReason, setFlagReason] = useState("");
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagSuccess, setFlagSuccess] = useState(false);
-
-  // ✅ NEW: Track polling intervals for each job
-  const completedJobsRef = useRef<Set<string>>(new Set());
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -331,45 +280,23 @@ const JobsList = forwardRef((_, ref) => {
     setHasFetchedJobs(true);
   };
 
-  // Load token balance and per-job token summaries
-
-  // ✅ NEW: Function to clear polling for a specific job
-  const markJobAsCompleted = (jobId: string) => {
-    completedJobsRef.current.add(jobId);
-  };
-
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
-  const lerpRef = useRef<NodeJS.Timeout | null>(null);
-
-  const realRef = useRef(realProgressMap);
-  const dispRef = useRef(displayProgressMap);
-  const jsonRef = useRef(jsonStatusMap);
-  useEffect(() => {
-    realRef.current = realProgressMap;
-  }, [realProgressMap]);
-  useEffect(() => {
-    dispRef.current = displayProgressMap;
-  }, [displayProgressMap]);
-  useEffect(() => {
-    jsonRef.current = jsonStatusMap;
-  }, [jsonStatusMap]);
-
   useImperativeHandle(ref, () => ({
     refreshJobs,
     hasNotificationPermission,
     requestNotificationPermission,
   }));
 
+  // Initial fetch
   useEffect(() => {
     refreshJobs();
   }, [supabase, user?.id, isLoaded]);
 
-  // ✅ FIXED: Supabase Realtime subscription with proper state updates
+  // Simple: just refresh on any database update
   useEffect(() => {
     if (!isLoaded || !user?.id) return;
-  
+
     const channel = supabase
-      .channel("job-status-changes")
+      .channel("job-updates")
       .on(
         "postgres_changes",
         {
@@ -378,171 +305,22 @@ const JobsList = forwardRef((_, ref) => {
           table: "render_jobs",
           filter: `user_id=eq.${user.id}`,
         },
-        async (payload) => {
-          console.log("Realtime update received:", payload);
-          
-          // Fetch the complete job data to ensure we have all fields including s3_url
-          const { data: completeJob, error } = await supabase
-            .from("render_jobs")
-            .select("*")
-            .eq("id", payload.new.id)
-            .single();
-  
-          if (error) {
-            console.error("Error fetching complete job:", error);
-            return;
-          }
-  
-          const updatedJob = completeJob as RenderJob;
-          console.log("Complete job data fetched:", updatedJob);
-  
-          // Update jobs state with the complete data
-          setJobs((prevJobs) => {
-            const newJobs = prevJobs.map((job) =>
-              job.id === updatedJob.id ? updatedJob : job
-            );
-            console.log("Jobs state updated, new jobs:", newJobs);
-            return newJobs;
-          });
-  
-          // Update status map if status changed
-          if (updatedJob.status) {
-            setJsonStatusMap((prev) => ({
-              ...prev,
-              [updatedJob.job_id]: updatedJob.status
-            }));
-          }
-  
-          // Mark as completed if done/failed/cancelled
-          if (
-            updatedJob.status === "done" ||
-            updatedJob.status === "failed" ||
-            updatedJob.status === "cancelled"
-          ) {
-            console.log("Marking job as completed:", updatedJob.id);
-            markJobAsCompleted(updatedJob.id);
-            
-            // Set progress to 100% for done jobs
-            if (updatedJob.status === "done") {
-              setRealProgressMap((prev) => ({
-                ...prev,
-                [updatedJob.job_id]: 100
-              }));
-            }
-          }
+        () => {
+          // Just refresh the entire list
+          refreshJobs();
         },
       )
       .subscribe();
-  
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, [supabase, user?.id, isLoaded]);
 
+  // Update clock every second
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
-
-  // No token UI on this page per latest request
-
-  // ✅ UPDATED: API-based polling with interval tracking
-  useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-
-    pollRef.current = setInterval(async () => {
-      const active = jobs.filter(
-        (j) => j.status === "processing" && !completedJobsRef.current.has(j.id),
-      );
-
-      if (active.length === 0) {
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-        return;
-      }
-
-      for (const job of active) {
-        const result = await fetchJobProgress(job.id);
-        if (!result) continue;
-
-        const status = (result.status || "").toLowerCase();
-        const progress = result.progress ?? 0;
-
-        if (status) {
-          setJsonStatusMap((prev) => ({ ...prev, [job.job_id]: status }));
-        }
-
-        setRealProgressMap((prev) => ({
-          ...prev,
-          [job.job_id]: Math.max(0, Math.min(100, progress)),
-        }));
-
-        if (result.done || status === "done" || status === "failed") {
-          completedJobsRef.current.add(job.id);
-          setRealProgressMap((prev) => ({ ...prev, [job.job_id]: 100 }));
-          setJsonStatusMap((prev) => ({
-            ...prev,
-            [job.job_id]: status || "done",
-          }));
-          
-          // Refresh jobs to get the latest data including s3_url
-          refreshJobs();
-        }
-      }
-    }, 3000);
-
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [jobs, user?.id]);
-
-  // ✅ Cleanup all polling intervals on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (lerpRef.current) clearInterval(lerpRef.current);
-    lerpRef.current = setInterval(() => {
-      setDisplayProgressMap((prev) => {
-        const updated: Record<string, number> = { ...prev };
-        const real = realRef.current;
-
-        const ids = new Set(Object.keys(prev).concat(Object.keys(real)));
-        ids.forEach((id) => {
-          const current = prev[id] ?? 0;
-          let target = real[id];
-
-          if (typeof target !== "number") {
-            target = Math.min(95, current + 0.4);
-          }
-
-          const delta = target - current;
-          const distance = Math.abs(delta);
-          const factor = Math.min(0.35, 0.18 + distance * 0.007);
-          const maxStep = current < 80 ? 8 : 2;
-          const step = Math.max(-maxStep, Math.min(maxStep, delta * factor));
-
-          let next = current + step;
-          if (delta > 0 && next > target - 0.8) next = Math.min(target, next);
-          if (delta < 0 && next < target + 0.8) next = Math.max(target, next);
-          if (real[id] === 100)
-            next = Math.min(100, Math.max(next, current + 1.2));
-
-          updated[id] = Number(next.toFixed(2));
-        });
-
-        return updated;
-      });
-    }, 250);
-
-    return () => {
-      if (lerpRef.current) clearInterval(lerpRef.current);
-    };
   }, []);
 
   // Filter jobs based on selected time filter
@@ -734,11 +512,8 @@ const JobsList = forwardRef((_, ref) => {
           {!loading && filteredJobs.length > 0 && (
             <div className="border-t border-b border-gray-700 grid grid-cols-1 md:grid-cols-2">
               {filteredJobs.map((job) => {
-                // Use job.status directly as the primary source of truth
-                const effectiveStatus = job.status;
-
                 const s = STATUS_MAP[
-                  effectiveStatus as keyof typeof STATUS_MAP
+                  job.status as keyof typeof STATUS_MAP
                 ] ?? {
                   label: "Unknown",
                   icon: AlertCircle,
@@ -770,8 +545,6 @@ const JobsList = forwardRef((_, ref) => {
                   : null;
                 const expired = expiryMs ? now > expiryMs : false;
 
-                const progress = displayProgressMap[job.job_id] ?? 0;
-
                 return (
                   <div
                     key={job.id}
@@ -784,10 +557,10 @@ const JobsList = forwardRef((_, ref) => {
                           className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${s.bg}`}
                         >
                           <div
-                            className={`w-1.5 h-1.5 rounded-full ${s.dot} ${effectiveStatus === "processing" ? "animate-pulse" : ""}`}
+                            className={`w-1.5 h-1.5 rounded-full ${s.dot} ${job.status === "processing" ? "animate-pulse" : ""}`}
                           ></div>
                           <Icon
-                            className={`w-3.5 h-3.5 ${s.color} ${effectiveStatus === "processing" ? "animate-spin" : ""}`}
+                            className={`w-3.5 h-3.5 ${s.color} ${job.status === "processing" ? "animate-spin" : ""}`}
                           />
                           <span className={`text-xs font-semibold ${s.color}`}>
                             {s.label}
@@ -902,26 +675,20 @@ const JobsList = forwardRef((_, ref) => {
                       )}
                     </div>
 
-                    {/* Progress Bar */}
-                    {(effectiveStatus === "processing" ||
-                      job.status === "queued") && (
+                    {/* Progress Bar - Only for processing/queued */}
+                    {(job.status === "processing" || job.status === "queued") && (
                       <div className="mb-3">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-xs font-medium text-white">
-                            {effectiveStatus === "queued"
+                            {job.status === "queued"
                               ? "Generating audio..."
                               : "Rendering video..."}
-                          </span>
-                          <span className="text-xs font-semibold text-accent-primary">
-                            {Math.round(progress)}%
                           </span>
                         </div>
                         <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
                           <div
-                            className="h-full rounded-full transition-[width] duration-500 ease-out bg-accent-primary"
-                            style={{
-                              width: `${Math.min(100, Math.max(0, progress))}%`,
-                            }}
+                            className="h-full rounded-full bg-accent-primary animate-pulse"
+                            style={{ width: "50%" }}
                           />
                         </div>
                       </div>
