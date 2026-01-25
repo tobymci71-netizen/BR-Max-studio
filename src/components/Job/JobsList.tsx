@@ -306,6 +306,7 @@ const JobsList = forwardRef((_, ref) => {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
+          console.log("New update")
           // Just refresh the entire list
           refreshJobs();
         },
