@@ -367,7 +367,7 @@ const JobsList = forwardRef((_, ref) => {
   // ✅ NEW: Supabase Realtime subscription for job status changes
   useEffect(() => {
     if (!isLoaded || !user?.id) return;
-
+  
     const channel = supabase
       .channel("job-status-changes")
       .on(
@@ -378,15 +378,30 @@ const JobsList = forwardRef((_, ref) => {
           table: "render_jobs",
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          const updatedJob = payload.new as RenderJob;
-
+        async (payload) => {
+          console.log("Realtime update received:", payload); // Debug log
+          
+          // Fetch the complete job data to ensure we have all fields
+          const { data: completeJob, error } = await supabase
+            .from("render_jobs")
+            .select("*")
+            .eq("id", payload.new.id)
+            .single();
+  
+          if (error) {
+            console.error("Error fetching complete job:", error);
+            return;
+          }
+  
+          const updatedJob = completeJob as RenderJob;
+          console.log("Complete job data:", updatedJob); // Debug log
+  
           setJobs((prevJobs) =>
             prevJobs.map((job) =>
               job.id === updatedJob.id ? updatedJob : job,
             ),
           );
-
+  
           if (
             updatedJob.status === "done" ||
             updatedJob.status === "failed" ||
@@ -397,7 +412,7 @@ const JobsList = forwardRef((_, ref) => {
         },
       )
       .subscribe();
-
+  
     return () => {
       supabase.removeChannel(channel);
     };
