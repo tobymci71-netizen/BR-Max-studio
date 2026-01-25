@@ -1004,6 +1004,8 @@ const JobsList = forwardRef((_, ref) => {
                       </div>
                     )}
 
+job.s3_url: {job.s3_url}
+job.status: {job.status}
                     {job.s3_url && job.status === "done" && (
                       <div className="pt-3 border-t border-gray-700">
                         {expired && (
