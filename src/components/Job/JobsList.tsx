@@ -364,7 +364,7 @@ const JobsList = forwardRef((_, ref) => {
     refreshJobs();
   }, [supabase, user?.id, isLoaded]);
 
-  // ✅ NEW: Supabase Realtime subscription for job status changes
+  // ✅ FIXED: Supabase Realtime subscription with proper state updates
   useEffect(() => {
     if (!isLoaded || !user?.id) return;
   
@@ -379,9 +379,9 @@ const JobsList = forwardRef((_, ref) => {
           filter: `user_id=eq.${user.id}`,
         },
         async (payload) => {
-          console.log("Realtime update received:", payload); // Debug log
+          console.log("Realtime update received:", payload);
           
-          // Fetch the complete job data to ensure we have all fields
+          // Fetch the complete job data to ensure we have all fields including s3_url
           const { data: completeJob, error } = await supabase
             .from("render_jobs")
             .select("*")
@@ -394,20 +394,41 @@ const JobsList = forwardRef((_, ref) => {
           }
   
           const updatedJob = completeJob as RenderJob;
-          console.log("Complete job data:", updatedJob); // Debug log
+          console.log("Complete job data fetched:", updatedJob);
   
-          setJobs((prevJobs) =>
-            prevJobs.map((job) =>
-              job.id === updatedJob.id ? updatedJob : job,
-            ),
-          );
+          // Update jobs state with the complete data
+          setJobs((prevJobs) => {
+            const newJobs = prevJobs.map((job) =>
+              job.id === updatedJob.id ? updatedJob : job
+            );
+            console.log("Jobs state updated, new jobs:", newJobs);
+            return newJobs;
+          });
   
+          // Update status map if status changed
+          if (updatedJob.status) {
+            setJsonStatusMap((prev) => ({
+              ...prev,
+              [updatedJob.job_id]: updatedJob.status
+            }));
+          }
+  
+          // Mark as completed if done/failed/cancelled
           if (
             updatedJob.status === "done" ||
             updatedJob.status === "failed" ||
             updatedJob.status === "cancelled"
           ) {
+            console.log("Marking job as completed:", updatedJob.id);
             markJobAsCompleted(updatedJob.id);
+            
+            // Set progress to 100% for done jobs
+            if (updatedJob.status === "done") {
+              setRealProgressMap((prev) => ({
+                ...prev,
+                [updatedJob.job_id]: 100
+              }));
+            }
           }
         },
       )
@@ -465,6 +486,9 @@ const JobsList = forwardRef((_, ref) => {
             ...prev,
             [job.job_id]: status || "done",
           }));
+          
+          // Refresh jobs to get the latest data including s3_url
+          refreshJobs();
         }
       }
     }, 3000);
@@ -710,15 +734,8 @@ const JobsList = forwardRef((_, ref) => {
           {!loading && filteredJobs.length > 0 && (
             <div className="border-t border-b border-gray-700 grid grid-cols-1 md:grid-cols-2">
               {filteredJobs.map((job) => {
-                const apiStatus = (
-                  jsonRef.current[job.job_id] || ""
-                ).toLowerCase();
-                const effectiveStatus =
-                  apiStatus === "done" || apiStatus === "failed"
-                    ? (apiStatus as typeof job.status)
-                    : job.status === "queued" && apiStatus === "processing"
-                      ? "processing"
-                      : job.status;
+                // Use job.status directly as the primary source of truth
+                const effectiveStatus = job.status;
 
                 const s = STATUS_MAP[
                   effectiveStatus as keyof typeof STATUS_MAP
@@ -855,13 +872,6 @@ const JobsList = forwardRef((_, ref) => {
                                 </span>
                               </div>
                             )}
-                          {/* {expired && (
-                            <div>
-                              <span className="text-rose-400 font-medium">
-                                Download expired
-                              </span>
-                            </div>
-                          )} */}
                           {job.status === "failed" && (
                             <div>
                               <span className="text-rose-400 font-medium">
@@ -1004,8 +1014,6 @@ const JobsList = forwardRef((_, ref) => {
                       </div>
                     )}
 
-job.s3_url: {job.s3_url}
-job.status: {job.status}
                     {job.s3_url && job.status === "done" && (
                       <div className="pt-3 border-t border-gray-700">
                         {expired && (
@@ -1166,7 +1174,6 @@ job.status: {job.status}
                   <Button
                     onClick={submitFlag}
                     disabled={flagSubmitting || !flagReason.trim()}
-                    // className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {flagSubmitting ? (
                       <>
