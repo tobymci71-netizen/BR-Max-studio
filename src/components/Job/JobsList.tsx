@@ -300,7 +300,7 @@ const JobsList = forwardRef((_, ref) => {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "render_jobs",
           filter: `user_id=eq.${user.id}`,
