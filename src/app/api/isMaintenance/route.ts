@@ -15,7 +15,7 @@ export async function GET() {
         { status: 500 }
       );
     }
-    const isDevelopment = process.env.NODE_ENV === "development";
+    // const isDevelopment = process.env.NODE_ENV === "development";
 
 
     const resp = {
@@ -24,9 +24,9 @@ export async function GET() {
       adminUserIds: [] as string[],
       systemCreatedAt: data?.created_at ?? null,
     };
-    if(isDevelopment) {
-      resp.adminUserIds = data.admin_user_ids ?? [];
-    }
+    // if(isDevelopment) {
+    //   resp.adminUserIds = data.admin_user_ids ?? [];
+    // }
     return NextResponse.json(resp, { status: 200 });
 
   } catch (err) {
