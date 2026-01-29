@@ -757,7 +757,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
             if (!uploadRes.ok) {
               throw new Error(
-                uploadData.error || "Failed to upload audio batch",
+                "Failed to upload audio batch",
               );
             }
 
