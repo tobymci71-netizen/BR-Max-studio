@@ -37,6 +37,7 @@ function DemoPageContent() {
   const [studioAccessState, setStudioAccessState] = useState<
     "pending" | "allowed" | "blocked"
   >(studioHardPaywall ? "pending" : "allowed");
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
 
   // Handle referral code from URL parameter
   useEffect(() => {
@@ -206,22 +207,22 @@ function DemoPageContent() {
   };
 
   useEffect(() => {
-    if (!studioHardPaywall) {
-      setStudioAccessState("allowed");
-      return;
-    }
-
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
 
     const checkAccess = async () => {
-      setStudioAccessState("pending");
+      if (studioHardPaywall) {
+        setStudioAccessState("pending");
+      }
 
       // Set a 10-second timeout
       timeoutId = setTimeout(() => {
         if (mounted) {
           console.error("Studio access check timed out after 10 seconds");
-          setStudioAccessState("blocked");
+          if (studioHardPaywall) {
+            setStudioAccessState("blocked");
+          }
+          setIsSubscribed(false);
         }
       }, 10000);
 
@@ -235,15 +236,31 @@ function DemoPageContent() {
         clearTimeout(timeoutId);
 
         if (!mounted) return;
-        if (response.ok && data?.allow) {
-          setStudioAccessState("allowed");
+
+        // Track subscription status
+        const subscribed = response.ok && data?.allow;
+        setIsSubscribed(subscribed);
+
+        // Only block access if hard paywall is enabled
+        if (studioHardPaywall) {
+          if (subscribed) {
+            setStudioAccessState("allowed");
+          } else {
+            setStudioAccessState("blocked");
+          }
         } else {
-          setStudioAccessState("blocked");
+          // Always allow access, but track subscription for watermark
+          setStudioAccessState("allowed");
         }
       } catch (error) {
         console.error("Studio access fetch failed", error);
         clearTimeout(timeoutId);
-        if (mounted) setStudioAccessState("blocked");
+        if (mounted) {
+          setIsSubscribed(false);
+          if (studioHardPaywall) {
+            setStudioAccessState("blocked");
+          }
+        }
       }
     };
 
@@ -279,6 +296,7 @@ function DemoPageContent() {
         finalGenerateDisabled={isGenerating}
         finalGenerateNotice="Please do not close this page until the video generation is started to process."
         onGenerateFinal={handleGenerateFinal}
+        isSubscribed={isSubscribed ?? false}
       />
       {/* Compact top-right notifications */}
       <div className="fixed top-4 right-4 z-[60] w-80 max-w-[90vw] pointer-events-none space-y-2">

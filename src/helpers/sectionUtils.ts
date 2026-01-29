@@ -29,11 +29,21 @@ export const chunkMessages = (
  * Made conservative to prevent overflow
  */
 const estimateMessageHeight = (message: Message): number => {
-  // Base padding and styling
+  const TAIL_HEIGHT = 6; // Reduced height for bubble tail
+
+  // Check if this is an image message
+  if (message.type === "image" && message.imageUrl) {
+    // Image messages have: maxHeight 500px + 4px padding top/bottom (8px total)
+    // Note: Image messages don't show the tail, so we don't add TAIL_HEIGHT
+    const IMAGE_MAX_HEIGHT = 500;
+    const IMAGE_BUBBLE_PADDING = 8; // 4px * 2 for top and bottom
+    return IMAGE_MAX_HEIGHT + IMAGE_BUBBLE_PADDING;
+  }
+
+  // Text message calculation
   const BUBBLE_PADDING_VERTICAL = 12 * 2; // top + bottom padding
   const LINE_HEIGHT = 60; // Updated to match lineHeight: 1.6 (base font ~37px * 1.6 ≈ 60px)
   const CHARS_PER_LINE = 42; // Balanced estimate
-  const TAIL_HEIGHT = 6; // Reduced height for bubble tail
 
   const textLines = Math.ceil(message.text.length / CHARS_PER_LINE);
   const textHeight = textLines * LINE_HEIGHT;

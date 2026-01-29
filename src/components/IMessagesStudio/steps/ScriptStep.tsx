@@ -20,6 +20,11 @@ import {
   Lightbulb,
   CheckCircle,
   Image as ImageIcon,
+  Copy,
+  Trash2,
+  Plus,
+  ChevronDown,
+  Eye,
 } from "lucide-react";
 import { useStudioForm } from "../StudioProvider";
 import { useScriptParser } from "../hooks/useScriptParser";
@@ -80,6 +85,126 @@ Now convert the script below EXACTLY according to the above rules:
 `;
 const imageUploadsCache: Record<string, File | null> = {};
 
+// Simple view types and helpers
+type SimpleRow = {
+  id: string;
+  side: "me" | "them";
+  type: "text" | "command" | "image";
+  content: string;
+  imageName?: string;
+};
+
+function generateRowId() {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+function parseScriptToRows(scriptText: string): SimpleRow[] {
+  const lines = scriptText.split("\n");
+  const rows: SimpleRow[] = [];
+  let currentRow: SimpleRow | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Check if it's a command (starts with > and ends with <) but NOT an image command
+    if (trimmed.startsWith(">") && trimmed.endsWith("<")) {
+      // Check if it's an image command: > image name <
+      const imageCommandMatch = trimmed.match(/^>\s*image\s+(.+?)\s*<$/i);
+      if (imageCommandMatch) {
+        if (currentRow) {
+          rows.push(currentRow);
+          currentRow = null;
+        }
+        rows.push({
+          id: generateRowId(),
+          side: "me",
+          type: "image",
+          content: "",
+          imageName: imageCommandMatch[1].trim(),
+        });
+        continue;
+      }
+
+      if (currentRow) {
+        rows.push(currentRow);
+        currentRow = null;
+      }
+      rows.push({
+        id: generateRowId(),
+        side: "them",
+        type: "command",
+        content: trimmed,
+      });
+      continue;
+    }
+
+    // Check if it's a new message with prefix
+    const match = trimmed.match(/^(me|them):\s*(.*)$/i);
+    if (match) {
+      if (currentRow) {
+        rows.push(currentRow);
+      }
+      const side = match[1].toLowerCase() as "me" | "them";
+      const content = match[2] || "";
+
+      // Check for image syntax: {image: name} or > image name <
+      const imageMatch = content.match(/\{image:\s*(.+?)\s*\}/) ||
+                         content.match(/>\s*image\s+(.+?)\s*</i);
+      if (imageMatch) {
+        currentRow = null;
+        rows.push({
+          id: generateRowId(),
+          side,
+          type: "image",
+          content: "",
+          imageName: imageMatch[1].trim(),
+        });
+        continue;
+      }
+
+      currentRow = {
+        id: generateRowId(),
+        side,
+        type: "text",
+        content,
+      };
+    } else if (currentRow) {
+      // Continuation of previous message
+      currentRow.content += "\n" + trimmed;
+    }
+  }
+
+  if (currentRow) {
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
+function rowsToScriptText(rows: SimpleRow[]): string {
+  return rows
+    .map((row) => {
+      if (row.type === "command") {
+        // Ensure command format
+        let cmd = row.content.trim();
+        if (!cmd.startsWith(">")) cmd = "> " + cmd;
+        if (!cmd.endsWith("<")) cmd = cmd + " <";
+        return cmd;
+      }
+      if (row.type === "image") {
+        // Image format: me: {image: name} or them: {image: name}
+        const prefix = row.side === "me" ? "me:" : "them:";
+        const imageName = row.imageName || "unnamed";
+        return `${prefix} {image: ${imageName}}`;
+      }
+      // Text message
+      const prefix = row.side === "me" ? "me:" : "them:";
+      return `${prefix} ${row.content}`;
+    })
+    .join("\n");
+}
+
 function getInitialScriptText() {
   if (typeof window !== "undefined") {
     const saved = window.localStorage.getItem(SCRIPT_EDITOR_STORAGE_KEY);
@@ -94,6 +219,12 @@ export function ScriptStep() {
   const toast = useToast();
 
   const [scriptText, setScriptText] = useState(getInitialScriptText);
+  const [viewMode, setViewMode] = useState<"simple" | "advanced">("simple");
+  const [simpleRows, setSimpleRows] = useState<SimpleRow[]>(() =>
+    parseScriptToRows(getInitialScriptText())
+  );
+  const [newRowIds, setNewRowIds] = useState<Set<string>>(new Set());
+  const [removingRowIds, setRemovingRowIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [aiPromptModalOpen, setAiPromptModalOpen] = useState(false);
@@ -101,8 +232,10 @@ export function ScriptStep() {
     () => ({ ...imageUploadsCache }),
   );
   const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
+  const [imagePreviewModal, setImagePreviewModal] = useState<{ name: string; url: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const tableBodyRef = useRef<HTMLDivElement | null>(null);
   const wasFocusedRef = useRef(false);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const latestVoicesRef = useRef(formValues.voices);
@@ -309,11 +442,20 @@ export function ScriptStep() {
 
   const imagePlaceholders = useMemo(() => {
     const names = new Set<string>();
+
     // Match > image filename < pattern anywhere in the script
-    const regex = />\s*image\s+(.+?)\s*</gi;
+    const regex1 = />\s*image\s+(.+?)\s*</gi;
     let match: RegExpExecArray | null;
 
-    while ((match = regex.exec(scriptText)) !== null) {
+    while ((match = regex1.exec(scriptText)) !== null) {
+      const candidate = match[1]?.trim();
+      if (!candidate) continue;
+      names.add(candidate);
+    }
+
+    // Match {image: name} pattern anywhere in the script
+    const regex2 = /\{image:\s*(.+?)\s*\}/gi;
+    while ((match = regex2.exec(scriptText)) !== null) {
       const candidate = match[1]?.trim();
       if (!candidate) continue;
       names.add(candidate);
@@ -374,6 +516,15 @@ export function ScriptStep() {
         } catch (error) {
           console.error("Failed to save image to localStorage:", error);
         }
+
+        // Update formValues.messages with the new imageUrl for immediate preview update
+        const updatedMessages = formValues.messages.map((msg) => {
+          if (msg.type === "image" && msg.imageName === placeholder) {
+            return { ...msg, imageUrl: dataUrl };
+          }
+          return msg;
+        });
+        updateFormValues({ messages: updatedMessages });
       };
       reader.readAsDataURL(file);
     } else {
@@ -388,11 +539,288 @@ export function ScriptStep() {
       } catch (error) {
         console.error("Failed to remove image from localStorage:", error);
       }
+
+      // Clear imageUrl from messages
+      const updatedMessages = formValues.messages.map((msg) => {
+        if (msg.type === "image" && msg.imageName === placeholder) {
+          return { ...msg, imageUrl: "" };
+        }
+        return msg;
+      });
+      updateFormValues({ messages: updatedMessages });
     }
-  }, []);
+  }, [formValues.messages, updateFormValues]);
+
+  // Simple view handlers
+  const updateSimpleRows = useCallback(
+    (newRows: SimpleRow[]) => {
+      setSimpleRows(newRows);
+      const newScriptText = rowsToScriptText(newRows);
+      setScriptText(newScriptText);
+      // Parse and update form values
+      try {
+        const { messages, voices } = parseScript(newScriptText);
+        updateFormValues({ messages, voices: mergeVoiceAssignments(voices) });
+      } catch (error) {
+        console.error("Parse error:", error);
+      }
+    },
+    [parseScript, updateFormValues, mergeVoiceAssignments]
+  );
+
+  const handleAddRow = useCallback(
+    (side: "me" | "them") => {
+      const newRow: SimpleRow = {
+        id: generateRowId(),
+        side,
+        type: "text",
+        content: "",
+      };
+      // Track new row for animation
+      setNewRowIds((prev) => new Set(prev).add(newRow.id));
+      updateSimpleRows([...simpleRows, newRow]);
+      // Remove from newRowIds after animation completes
+      setTimeout(() => {
+        setNewRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(newRow.id);
+          return next;
+        });
+      }, 300);
+      // Scroll to bottom after state updates
+      setTimeout(() => {
+        if (tableBodyRef.current) {
+          tableBodyRef.current.scrollTo({
+            top: tableBodyRef.current.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      }, 0);
+    },
+    [simpleRows, updateSimpleRows]
+  );
+
+  const handleClearRows = useCallback(() => {
+    updateSimpleRows([]);
+  }, [updateSimpleRows]);
+
+  const handleDeleteRow = useCallback(
+    (id: string) => {
+      // Start exit animation
+      setRemovingRowIds((prev) => new Set(prev).add(id));
+      // Actually remove after animation
+      setTimeout(() => {
+        setRemovingRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        updateSimpleRows(simpleRows.filter((row) => row.id !== id));
+      }, 250);
+    },
+    [simpleRows, updateSimpleRows]
+  );
+
+  const handleDuplicateRow = useCallback(
+    (id: string) => {
+      const index = simpleRows.findIndex((row) => row.id === id);
+      if (index === -1) return;
+      const original = simpleRows[index];
+      const duplicate: SimpleRow = {
+        ...original,
+        id: generateRowId(),
+      };
+      // Track new row for animation
+      setNewRowIds((prev) => new Set(prev).add(duplicate.id));
+      const newRows = [...simpleRows];
+      newRows.splice(index + 1, 0, duplicate);
+      updateSimpleRows(newRows);
+      // Remove from newRowIds after animation completes
+      setTimeout(() => {
+        setNewRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(duplicate.id);
+          return next;
+        });
+      }, 300);
+    },
+    [simpleRows, updateSimpleRows]
+  );
+
+  const handleToggleSide = useCallback(
+    (id: string) => {
+      updateSimpleRows(
+        simpleRows.map((row) =>
+          row.id === id
+            ? { ...row, side: row.side === "me" ? "them" : "me" }
+            : row
+        )
+      );
+    },
+    [simpleRows, updateSimpleRows]
+  );
+
+  const handleChangeType = useCallback(
+    (id: string, newType: "text" | "command" | "image") => {
+      updateSimpleRows(
+        simpleRows.map((row) => {
+          if (row.id !== id) return row;
+
+          // If changing to image, set default image name
+          if (newType === "image") {
+            return { ...row, type: newType, content: "", imageName: row.imageName || "image1" };
+          }
+
+          // If changing from image to other type, clear imageName
+          const wasImage = row.type === "image";
+
+          let content = row.content;
+          // If changing to command, ensure brackets
+          if (newType === "command") {
+            content = content.trim();
+            if (!content.startsWith(">")) content = "> " + content;
+            if (!content.endsWith("<")) content = content + " <";
+          }
+          // If changing from command to text, remove brackets
+          if (newType === "text" && row.type === "command") {
+            content = content.replace(/^>\s*/, "").replace(/\s*<$/, "");
+          }
+
+          return { ...row, type: newType, content, imageName: wasImage ? undefined : row.imageName };
+        })
+      );
+    },
+    [simpleRows, updateSimpleRows]
+  );
+
+  const handleChangeContent = useCallback(
+    (id: string, content: string) => {
+      // Update local state only (no parsing)
+      setSimpleRows((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, content } : row))
+      );
+    },
+    []
+  );
+
+  const handleChangeImageName = useCallback(
+    (id: string, imageName: string) => {
+      // Update local state only (no parsing)
+      setSimpleRows((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, imageName } : row))
+      );
+    },
+    []
+  );
+
+  const handleContentBlur = useCallback(() => {
+    // On blur, sync to scriptText and parse
+    const newScriptText = rowsToScriptText(simpleRows);
+    setScriptText(newScriptText);
+    try {
+      const { messages, voices } = parseScript(newScriptText);
+      updateFormValues({ messages, voices: mergeVoiceAssignments(voices) });
+    } catch (error) {
+      console.error("Parse error:", error);
+    }
+  }, [simpleRows, parseScript, updateFormValues, mergeVoiceAssignments]);
+
+  // Sync simpleRows when scriptText changes from Advanced view
+  const handleViewModeChange = useCallback(
+    (newMode: "simple" | "advanced") => {
+      if (newMode === "simple") {
+        // Parse current scriptText to rows
+        setSimpleRows(parseScriptToRows(scriptText));
+      }
+      setViewMode(newMode);
+    },
+    [scriptText]
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {/* Free Script Generator Card */}
+      <div
+        style={{
+          padding: 24,
+          background: "linear-gradient(135deg, rgba(167,139,250,0.12) 0%, rgba(96,165,250,0.08) 100%)",
+          border: "1px solid rgba(167,139,250,0.35)",
+          borderRadius: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h4
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              margin: 0,
+              marginBottom: 6,
+              color: "#e0e7ff",
+            }}
+          >
+            Struggling with your story idea/script?
+          </h4>
+          <p
+            style={{
+              fontSize: 14,
+              margin: 0,
+              opacity: 0.85,
+              color: "#c7d2fe",
+            }}
+          >
+            Use our <strong style={{ color: "#a5b4fc" }}>FREE</strong> script generator to create engaging conversation scripts instantly.
+          </p>
+        </div>
+        <a
+          href="https://chatgpt.com/g/g-6924c5f484d081919d8cf44d945bafc8-cyno"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            background: "#ffffff",
+            border: "none",
+            borderRadius: 12,
+            padding: "12px 20px",
+            cursor: "pointer",
+            textDecoration: "none",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+            transition: "transform 0.2s, box-shadow 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.15)";
+          }}
+        >
+          <Image
+            src="https://br-max.s3.ap-south-1.amazonaws.com/CynoBotLogo.png"
+            alt="CynoBot"
+            width={24}
+            height={24}
+            style={{ borderRadius: 4 }}
+          />
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#1f2937",
+            }}
+          >
+            Try Script Generator
+          </span>
+        </a>
+      </div>
+
       {/* Script Editor */}
       <div
         style={{
@@ -527,6 +955,54 @@ export function ScriptStep() {
           </div>
         </div>
 
+        {/* View Mode Tabs */}
+        <div
+          style={{
+            display: "flex",
+            gap: 0,
+            marginBottom: 16,
+            background: "rgba(0,0,0,0.3)",
+            borderRadius: 10,
+            padding: 4,
+            width: "fit-content",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => handleViewModeChange("simple")}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              background: viewMode === "simple" ? "rgba(167,139,250,0.3)" : "transparent",
+              color: viewMode === "simple" ? "#e0e7ff" : "rgba(255,255,255,0.6)",
+              transition: "all 0.2s",
+            }}
+          >
+            Simple
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewModeChange("advanced")}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 600,
+              background: viewMode === "advanced" ? "rgba(167,139,250,0.3)" : "transparent",
+              color: viewMode === "advanced" ? "#e0e7ff" : "rgba(255,255,255,0.6)",
+              transition: "all 0.2s",
+            }}
+          >
+            Advanced
+          </button>
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -541,7 +1017,350 @@ export function ScriptStep() {
           }}
         />
 
-        <AutoGrowTextArea
+        {/* Simple View */}
+        {viewMode === "simple" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Table */}
+            <div
+              style={{
+                background: "rgba(0,0,0,0.3)",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {/* Table Header */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "100px 1fr auto",
+                  gap: 12,
+                  padding: "12px 16px",
+                  background: "rgba(255,255,255,0.05)",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  color: "rgba(255,255,255,0.7)",
+                }}
+              >
+                <div>Character</div>
+                <div>Content</div>
+                <div style={{ width: 70, textAlign: "center" }}>Actions</div>
+              </div>
+
+              {/* Table Body - Scrollable */}
+              <div
+                ref={tableBodyRef}
+                style={{
+                  maxHeight: 400,
+                  overflowY: "auto",
+                }}
+              >
+                {simpleRows.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                    }}
+                  >
+                    No messages yet. Click &quot;Add Left&quot; or &quot;Add Right&quot; to start.
+                  </div>
+                ) : (
+                  simpleRows.map((row, index) => {
+                    const isNew = newRowIds.has(row.id);
+                    const isRemoving = removingRowIds.has(row.id);
+                    return (
+                  <div
+                    key={row.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "100px 1fr auto",
+                      gap: 12,
+                      padding: "12px 16px",
+                      borderBottom:
+                        index < simpleRows.length - 1
+                          ? "1px solid rgba(255,255,255,0.06)"
+                          : "none",
+                      alignItems: "center",
+                      animation: isNew
+                        ? "rowSlideIn 0.3s ease-out"
+                        : isRemoving
+                          ? "rowSlideOut 0.25s ease-in forwards"
+                          : "none",
+                      opacity: isRemoving ? 0 : 1,
+                      transform: isRemoving ? "translateX(20px)" : "none",
+                      transition: "opacity 0.25s ease, transform 0.25s ease",
+                    }}
+                  >
+                    {/* Character Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSide(row.id)}
+                      disabled={row.type === "command"}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: row.type === "command" ? "not-allowed" : "pointer",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background:
+                          row.type === "command"
+                            ? "rgba(168,85,247,0.2)"
+                            : row.type === "image"
+                              ? row.side === "me"
+                                ? "rgba(168,85,247,0.25)"
+                                : "rgba(168,85,247,0.25)"
+                              : row.side === "me"
+                                ? "rgba(52,211,153,0.25)"
+                                : "rgba(96,165,250,0.25)",
+                        color:
+                          row.type === "command"
+                            ? "#c4b5fd"
+                            : row.type === "image"
+                              ? "#d8b4fe"
+                              : row.side === "me"
+                                ? "#6ee7b7"
+                                : "#93c5fd",
+                        opacity: row.type === "command" ? 0.6 : 1,
+                      }}
+                      title={row.type === "command" ? "Commands don't have a side" : "Click to toggle side"}
+                    >
+                      {row.type === "command" ? (
+                        "CMD"
+                      ) : row.side === "me" ? (
+                        <>
+                          Right <ChevronDown size={12} />
+                        </>
+                      ) : (
+                        <>
+                          Left <ChevronDown size={12} />
+                        </>
+                      )}
+                    </button>
+
+                    {/* Content Area */}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {/* Type Dropdown */}
+                      <select
+                        value={row.type}
+                        onChange={(e) =>
+                          handleChangeType(row.id, e.target.value as "text" | "command" | "image")
+                        }
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          background: "rgba(0,0,0,0.4)",
+                          color: "#fff",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          minWidth: 90,
+                        }}
+                      >
+                        <option value="text">Text</option>
+                        <option value="command">Command</option>
+                        <option value="image">Image</option>
+                      </select>
+
+                      {/* Content Input - changes based on type */}
+                      {row.type === "image" ? (
+                        <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center" }}>
+                          <input
+                            type="text"
+                            value={row.imageName || ""}
+                            onChange={(e) => handleChangeImageName(row.id, e.target.value)}
+                            onBlur={handleContentBlur}
+                            placeholder="Image name (e.g., catImage)"
+                            style={{
+                              flex: 1,
+                              padding: "8px 12px",
+                              borderRadius: 8,
+                              border: "1px solid rgba(168,85,247,0.4)",
+                              background: "rgba(168,85,247,0.1)",
+                              color: "#fff",
+                              fontSize: 13,
+                            }}
+                          />
+                          {row.imageName && imagePreviewUrls[row.imageName] && (
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 6,
+                                overflow: "hidden",
+                                border: "1px solid rgba(255,255,255,0.2)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Image
+                                src={imagePreviewUrls[row.imageName]}
+                                alt={row.imageName}
+                                width={36}
+                                height={36}
+                                style={{ objectFit: "cover", width: "100%", height: "100%" }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={row.content}
+                          onChange={(e) => handleChangeContent(row.id, e.target.value)}
+                          onBlur={handleContentBlur}
+                          placeholder={
+                            row.type === "command"
+                              ? "> Conversation with Name <"
+                              : "Enter message..."
+                          }
+                          style={{
+                            flex: 1,
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            background: "rgba(0,0,0,0.4)",
+                            color: "#fff",
+                            fontSize: 13,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicateRow(row.id)}
+                        title="Duplicate"
+                        style={{
+                          padding: 8,
+                          borderRadius: 6,
+                          border: "none",
+                          background: "rgba(255,255,255,0.08)",
+                          color: "rgba(255,255,255,0.7)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Copy size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRow(row.id)}
+                        title="Delete"
+                        style={{
+                          padding: 8,
+                          borderRadius: 6,
+                          border: "none",
+                          background: "rgba(239,68,68,0.15)",
+                          color: "#f87171",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons - Always visible */}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                padding: "12px 16px",
+                background: "rgba(0,0,0,0.2)",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleClearRows}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(239,68,68,0.4)",
+                  background: "rgba(239,68,68,0.15)",
+                  color: "#fca5a5",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Trash2 size={14} />
+                Clear All
+              </button>
+              <div style={{ flex: 1 }} />
+              <button
+                type="button"
+                onClick={() => handleAddRow("them")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(96,165,250,0.4)",
+                  background: "rgba(96,165,250,0.15)",
+                  color: "#93c5fd",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={14} />
+                Add Left (Them)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddRow("me")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(52,211,153,0.4)",
+                  background: "rgba(52,211,153,0.15)",
+                  color: "#6ee7b7",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={14} />
+                Add Right (Me)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Advanced View */}
+        {viewMode === "advanced" && (
+          <AutoGrowTextArea
           ref={textareaRef}
           minRows={16}
           maxRows={24}
@@ -581,6 +1400,7 @@ export function ScriptStep() {
             resize: "vertical",
           }}
         />
+        )}
 
         {imagePlaceholders.length > 0 && (
           <div
@@ -614,9 +1434,9 @@ export function ScriptStep() {
 
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-                gap: 10,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
               }}
             >
               {imagePlaceholders.map((name) => {
@@ -625,76 +1445,82 @@ export function ScriptStep() {
                 const previewUrl = imagePreviewUrls[name];
 
                 return (
-                  <label
+                  <div
                     key={name}
-                    htmlFor={uploadId}
                     style={{
-                      padding: 10,
-                      borderRadius: 10,
+                      padding: "10px 12px",
+                      borderRadius: 8,
                       background: "rgba(0,0,0,0.35)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                      cursor: "pointer",
-                      minHeight: previewUrl ? 180 : 72,
-                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: 12,
                     }}
                   >
-                    <div style={{ fontSize: 12, opacity: 0.75 }}>Image name</div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
+                    {/* Image name */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 2 }}>Image name</div>
+                      <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                    </div>
 
-                    {previewUrl && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          borderRadius: 8,
-                          overflow: "hidden",
-                          maxHeight: 120,
-                          display: "flex",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          background: "rgba(0,0,0,0.5)",
-                        }}
-                      >
-                        <Image
-                          src={previewUrl}
-                          alt={name}
-                          width={320}
-                          height={120}
-                          unoptimized
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: 120,
-                            objectFit: "contain",
-                          }}
-                        />
-                      </div>
-                    )}
-
+                    {/* Status indicator */}
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        fontSize: 12,
+                        fontSize: 11,
+                        opacity: 0.7,
+                        maxWidth: 120,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <div style={{ opacity: 0.75 }}>
-                        {selectedFile ? `Selected: ${selectedFile.name}` : "Attach image file"}
-                      </div>
-                      <div
+                      {selectedFile ? selectedFile.name : previewUrl ? "Image loaded" : "No image"}
+                    </div>
+
+                    {/* Preview button */}
+                    {previewUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setImagePreviewModal({ name, url: previewUrl })}
+                        title="Preview image"
                         style={{
-                          padding: "4px 8px",
-                          borderRadius: 8,
-                          border: "1px dashed rgba(255,255,255,0.2)",
-                          color: "#d1d5db",
+                          padding: 8,
+                          borderRadius: 6,
+                          border: "1px solid rgba(167,139,250,0.4)",
+                          background: "rgba(167,139,250,0.15)",
+                          color: "#c4b5fd",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
                         }}
                       >
-                        {previewUrl ? "Change" : "Upload"}
-                      </div>
-                    </div>
+                        <Eye size={14} />
+                      </button>
+                    )}
+
+                    {/* Upload button */}
+                    <label
+                      htmlFor={uploadId}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        border: "1px dashed rgba(255,255,255,0.25)",
+                        background: "rgba(255,255,255,0.05)",
+                        color: "#d1d5db",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Upload size={12} />
+                      {previewUrl ? "Change" : "Upload"}
+                    </label>
                     <input
                       id={uploadId}
                       type="file"
@@ -706,7 +1532,7 @@ export function ScriptStep() {
                         event.target.value = "";
                       }}
                     />
-                  </label>
+                  </div>
                 );
               })}
             </div>
@@ -1380,10 +2206,76 @@ export function ScriptStep() {
           </div>
         </div>
       </Modal>
+      {/* Image Preview Modal */}
+      <Modal
+        open={imagePreviewModal !== null}
+        onClose={() => setImagePreviewModal(null)}
+        title={imagePreviewModal ? `Preview: ${imagePreviewModal.name}` : "Image Preview"}
+        width={600}
+      >
+        {imagePreviewModal && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 16,
+              padding: "10px 0",
+            }}
+          >
+            <div
+              style={{
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "rgba(0,0,0,0.4)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                maxWidth: "100%",
+              }}
+            >
+              <Image
+                src={imagePreviewModal.url}
+                alt={imagePreviewModal.name}
+                width={550}
+                height={400}
+                unoptimized
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "60vh",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.7 }}>
+              Image name: <strong style={{ color: "#c4b5fd" }}>{imagePreviewModal.name}</strong>
+            </div>
+          </div>
+        )}
+      </Modal>
       <style>{`
         code {
           font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
           font-size: 0.9em;
+        }
+        @keyframes rowSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes rowSlideOut {
+          from {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateX(20px);
+          }
         }
       `}</style>
     </div>

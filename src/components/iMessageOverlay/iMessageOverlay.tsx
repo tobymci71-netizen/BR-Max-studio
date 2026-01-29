@@ -155,7 +155,7 @@ const MessageBubble: React.FC<{
       <div
         style={{
           alignSelf: isMe ? "flex-end" : "flex-start",
-          backgroundColor: isMe ? colors.bubbleMe : colors.bubbleThem,
+          backgroundColor: isImageMessage && msg.imageUrl ? "" :isMe ? colors.bubbleMe : colors.bubbleThem,
           color: isMe ? colors.textMe : colors.textThem,
           padding: isImageMessage ? "4px" : "9px 20px",
           borderRadius: isImageMessage ? 16 : 32,
@@ -180,16 +180,19 @@ const MessageBubble: React.FC<{
             height={400}
             unoptimized
             style={{
+              maxHeight: "500px",
               maxWidth: "100%",
-              maxHeight: 400,
-              borderRadius: 12,
+              width: "auto",
+              height: "auto",
+              borderRadius: "20px",
               display: "block",
+              border: "1px solid rgba(0, 0, 0, 0.15)",
             }}
           />
         ) : (
           renderCensoredText(msg.text)
         )}
-        {isLastInGroup && (
+        {isLastInGroup && !isImageMessage && (
           <>
             <div
               style={{

@@ -257,6 +257,7 @@ export const CompositionProps = z.object({
   backgroundMusic: z.string().optional(),
   backgroundMusicVolume: z.number().min(0).max(100).default(40),
   greenScreen: z.boolean().default(false),
+  showWatermark: z.boolean().default(false),
   enableAudio: z.literal(true).default(true),
   elevenLabsApiKey: z.string().min(1, "ElevenLabs API key is required"),
   // Silence Remover settings
@@ -494,6 +495,7 @@ export const DEFAULT_BACKGROUND_VIDEO = "/background_video.mp4";
 
 export const defaultMyCompProps: CompositionPropsType = {
   enableAudio: true,
+  showWatermark: false,
   elevenLabsApiKey: "asd",
   enableSilenceTrimming: false,
   voiceSettings: { ...DEFAULT_VOICE_SETTINGS },

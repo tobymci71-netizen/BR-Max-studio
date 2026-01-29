@@ -23,12 +23,13 @@ export type IMessagesStudioProps = {
     backgroundMusicFile: File | string | null;
     monetizationContext: MonetizationPreviewContext | null;
   }) => void;
+  isSubscribed?: boolean;
 };
 
 export default function IMessagesStudio(props: IMessagesStudioProps) {
   return (
     <ToastProvider>
-      <StudioProvider>
+      <StudioProvider isSubscribed={props.isSubscribed ?? false}>
         <div
           style={{
             fontFamily: TOK.font,
