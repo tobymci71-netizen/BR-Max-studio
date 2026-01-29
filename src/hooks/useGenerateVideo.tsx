@@ -626,29 +626,72 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
             batchStart,
             batchStart + BATCH_SIZE,
           );
-          const batchResults = await Promise.all(
-            batchSlice.map(async (task, offset) => {
-              throwIfCancelled();
-              const { base64Data, duration } = await generateAudioFile({
-                text: task.text,
-                voiceId: task.voiceId,
-                apiKey: previewProps.elevenLabsApiKey!,
-                enableSilenceTrimming: previewProps.enableSilenceTrimming ?? false,
-                voiceSettings: previewProps.voiceSettings,
-              });
 
-              throwIfCancelled();
-              return {
-                taskIndex: batchStart + offset,
-                uploadIndex: task.uploadIndex,
-                uploadPrefix: task.uploadPrefix,
-                base64Data,
-                duration,
-              };
-            }),
-          );
+          try {
+            const batchResults = await Promise.all(
+              batchSlice.map(async (task, offset) => {
+                throwIfCancelled();
+                try {
+                  const { base64Data, duration } = await generateAudioFile({
+                    text: task.text,
+                    voiceId: task.voiceId,
+                    apiKey: previewProps.elevenLabsApiKey!,
+                    enableSilenceTrimming: previewProps.enableSilenceTrimming ?? false,
+                    voiceSettings: previewProps.voiceSettings,
+                  });
 
-          generatedAudio.push(...batchResults);
+                  throwIfCancelled();
+                  return {
+                    taskIndex: batchStart + offset,
+                    uploadIndex: task.uploadIndex,
+                    uploadPrefix: task.uploadPrefix,
+                    base64Data,
+                    duration,
+                  };
+                } catch (audioErr) {
+                  // Log individual audio generation failure with task details
+                  const audioError = audioErr instanceof Error ? audioErr : new Error(String(audioErr));
+                  audioError.name = "AudioGenerationError";
+
+                  // Attach task context to the error for logging
+                  (audioError as Error & { taskContext?: unknown }).taskContext = {
+                    taskKind: task.kind,
+                    taskIndex: task.index,
+                    voiceId: task.voiceId,
+                    textLength: task.text?.length,
+                    textPreview: task.text?.substring(0, 100),
+                  };
+
+                  throw audioErr;
+                }
+              }),
+            );
+
+            generatedAudio.push(...batchResults);
+          } catch (batchErr) {
+            // Log audio generation batch failure immediately
+            const parsed = parseGenerationError(batchErr);
+            await logErrorToServer(
+              batchErr,
+              parsed.title,
+              parsed.message,
+              {
+                failurePoint: "audio_generation_batch",
+                batchStart,
+                batchSize: batchSlice.length,
+                totalAudioTasks: allAudioTasks.length,
+                generatedSoFar: generatedAudio.length,
+                failedTasks: batchSlice.map(t => ({
+                  kind: t.kind,
+                  index: t.index,
+                  voiceId: t.voiceId,
+                  textLength: t.text?.length,
+                })),
+                taskContext: (batchErr as Error & { taskContext?: unknown })?.taskContext,
+              }
+            );
+            throw batchErr; // Re-throw to trigger refund
+          }
 
           // progress
           const progress = totalAudio
@@ -757,7 +800,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
             if (!uploadRes.ok) {
               throw new Error(
-                "Failed to upload audio batch",
+                uploadData.error || `Failed to upload audio batch (status: ${uploadRes.status})`,
               );
             }
 
@@ -799,10 +842,30 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
             currentIndex,
             currentIndex + UPLOAD_BATCH_SIZE,
           );
-          const batchResults = await uploadBatch(batch);
-          allAudioUrls.push(...batchResults);
-          setAudioUploaded(allAudioUrls.length);
-          currentIndex += batch.length;
+
+          try {
+            const batchResults = await uploadBatch(batch);
+            allAudioUrls.push(...batchResults);
+            setAudioUploaded(allAudioUrls.length);
+            currentIndex += batch.length;
+          } catch (uploadErr) {
+            // Log audio upload failure immediately
+            const parsed = parseGenerationError(uploadErr);
+            await logErrorToServer(
+              uploadErr,
+              parsed.title,
+              parsed.message,
+              {
+                failurePoint: "audio_upload_batch",
+                currentIndex,
+                batchSize: batch.length,
+                totalGeneratedAudio: generatedAudio.length,
+                uploadedSoFar: allAudioUrls.length,
+              }
+            );
+            throw uploadErr; // Re-throw to trigger refund
+          }
+
           throwIfCancelled();
         }
 
@@ -955,7 +1018,28 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           { length: Math.min(MAX_PARALLEL_UPLOADS, partUploads.length) },
           () => worker(),
         );
-        await Promise.all(workers);
+
+        try {
+          await Promise.all(workers);
+        } catch (bgUploadErr) {
+          // Log background upload failure immediately
+          const parsed = parseGenerationError(bgUploadErr);
+          await logErrorToServer(
+            bgUploadErr,
+            parsed.title,
+            parsed.message,
+            {
+              failurePoint: "background_video_upload",
+              fileName: backgroundName,
+              fileSize: backgroundFile.size,
+              fileType: backgroundFile.type,
+              partCount,
+              partSize,
+              completedParts,
+            }
+          );
+          throw bgUploadErr; // Re-throw to trigger refund
+        }
 
         const parts = results.filter(Boolean);
 
@@ -965,8 +1049,23 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           body: JSON.stringify({ fileName: backgroundName, uploadId, parts }),
         });
         const completeData = await completeRes.json();
-        if (!completeRes.ok)
-          throw new Error(completeData.error || "Failed to finalize upload");
+        if (!completeRes.ok) {
+          const completeError = new Error(completeData.error || "Failed to finalize upload");
+          // Log multipart completion failure
+          const parsed = parseGenerationError(completeError);
+          await logErrorToServer(
+            completeError,
+            parsed.title,
+            parsed.message,
+            {
+              failurePoint: "background_video_complete_multipart",
+              fileName: backgroundName,
+              uploadId,
+              partsCount: parts.length,
+            }
+          );
+          throw completeError;
+        }
 
         s3Key = completeData.key;
         backgroundUrl = completeData.url;
@@ -1048,10 +1147,26 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
       });
 
       const renderData = await renderRes.json();
-      if (!renderRes.ok)
-        throw new Error(
+      if (!renderRes.ok) {
+        const renderError = new Error(
           renderData.message || renderData.error || "Failed to start render",
         );
+        // Log render start failure immediately
+        const parsed = parseGenerationError(renderError);
+        await logErrorToServer(
+          renderError,
+          parsed.title,
+          parsed.message,
+          {
+            failurePoint: "start_render_api",
+            renderStatus: renderRes.status,
+            renderResponse: renderData,
+            s3Key,
+            backgroundName,
+          }
+        );
+        throw renderError;
+      }
       renderStartedRef.current = true;
 
       console.log("🚀 Render started:", renderData);
