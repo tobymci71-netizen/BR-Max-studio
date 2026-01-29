@@ -16,6 +16,7 @@ import {
 import { useAppContext } from "@/context/AppContext";
 import { useAuth } from "@clerk/nextjs";
 import { buildPreviewProps } from "@/helpers/previewBuilder";
+import type { ClientErrorPayload } from "@/app/api/render/log-error/route";
 
 type ParsedError = {
   title: string | null;
@@ -178,6 +179,88 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
   const [isCancellingGeneration, setIsCancellingGeneration] = useState(false);
   const cancelRequestedRef = useRef(false);
 
+  // Refs to track current state for error logging
+  const currentPropsRef = useRef<typeof defaultMyCompProps | null>(null);
+  const currentBackgroundFileRef = useRef<File | null>(null);
+  const currentMonetizationContextRef = useRef<MonetizationPreviewContext | null>(null);
+  const currentStageRef = useRef<string>("idle");
+  const currentAudioProgressRef = useRef<number>(0);
+  const currentAudioGeneratedRef = useRef<number>(0);
+  const currentAudioTotalRef = useRef<number>(0);
+  const currentBackgroundProgressRef = useRef<number>(0);
+  const currentJobIdRef = useRef<string | null>(null);
+
+  const logErrorToServer = async (
+    error: unknown,
+    errorTitle: string | null,
+    userMessage: string,
+    extraContext: Record<string, unknown> = {}
+  ) => {
+    try {
+      const props = currentPropsRef.current;
+      const errorObj = error instanceof Error ? error : null;
+
+      // Extract voice IDs from props
+      const voiceIds = props?.voices?.map(v => v.voiceId).filter(Boolean) || [];
+      if (props?.monetization?.enabled) {
+        if (props.monetization.meVoiceId) voiceIds.push(props.monetization.meVoiceId);
+        if (props.monetization.compaignBotVoiceId) voiceIds.push(props.monetization.compaignBotVoiceId);
+      }
+
+      // Get first 8 chars of API key for debugging (safe to log)
+      const elevenLabsKeyPrefix = props?.elevenLabsApiKey
+        ? props.elevenLabsApiKey.substring(0, 8)
+        : null;
+
+      // Sanitize props - remove sensitive data
+      const sanitizedProps = props ? {
+        ...props,
+        elevenLabsApiKey: elevenLabsKeyPrefix ? `${elevenLabsKeyPrefix}...` : null,
+      } : null;
+
+      const payload: ClientErrorPayload = {
+        jobId: currentJobIdRef.current,
+        errorType: errorObj?.name || "UnknownError",
+        stage: currentStageRef.current,
+        userMessage,
+        errorTitle,
+        debugMessage: errorObj?.message || String(error),
+        errorStack: errorObj?.stack || null,
+        propsSnapshot: sanitizedProps,
+        audioProgress: currentAudioProgressRef.current,
+        audioGenerated: currentAudioGeneratedRef.current,
+        audioTotal: currentAudioTotalRef.current,
+        backgroundUploadProgress: currentBackgroundProgressRef.current,
+        elevenLabsKeyPrefix,
+        voiceIdsUsed: voiceIds.length > 0 ? voiceIds : null,
+        monetizationEnabled: props?.monetization?.enabled ?? null,
+        customBackgroundUsed: currentBackgroundFileRef.current !== null,
+        messageCount: props?.messages?.length ?? null,
+        extraContext: {
+          ...extraContext,
+          monetizationCategory: props?.monetization?.category,
+          monetizationMessagesCount: props?.monetization?.messages?.length,
+          enableAudio: props?.enableAudio,
+          enableSilenceTrimming: props?.enableSilenceTrimming,
+          backgroundFileName: currentBackgroundFileRef.current?.name,
+          backgroundFileSize: currentBackgroundFileRef.current?.size,
+          backgroundFileType: currentBackgroundFileRef.current?.type,
+          renderStarted: renderStartedRef.current,
+          releaseHoldCalled: releaseHoldCalledRef.current,
+          wasCancelled: cancelRequestedRef.current,
+        },
+      };
+
+      await fetch("/api/render/log-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (logErr) {
+      console.error("Failed to log error to server:", logErr);
+    }
+  };
+
   const refundHeldTokens = async (jobId: string, reason?: string) => {
     if (!jobId || releaseHoldCalledRef.current) return;
     releaseHoldCalledRef.current = true;
@@ -248,6 +331,16 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
 
+    // Initialize tracking refs for error logging
+    currentPropsRef.current = previewProps;
+    currentBackgroundFileRef.current = backgroundFile;
+    currentMonetizationContextRef.current = monetizationContext;
+    currentStageRef.current = "processing";
+    currentAudioProgressRef.current = 0;
+    currentAudioGeneratedRef.current = 0;
+    currentAudioTotalRef.current = 0;
+    currentBackgroundProgressRef.current = 0;
+    currentJobIdRef.current = null;
 
     resetCancellationState();
     setIsGenerating(true);
@@ -344,6 +437,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
       // ========== STEP 1: HOLD TOKENS ==========
       setGenerationStage("holding_tokens");
+      currentStageRef.current = "holding_tokens";
 
       const usesMonetization = Boolean(monetizationSettings.enabled);
 
@@ -371,6 +465,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
       }
 
       jobId = holdData.jobId;
+      currentJobIdRef.current = jobId;
 
       throwIfCancelled();
 
@@ -383,6 +478,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
       // previewProps.enableAudio = false;
       if (previewProps.enableAudio) {
         setGenerationStage("generating_audio");
+        currentStageRef.current = "generating_audio";
 
         const planDetails = await getPlanDetails(
           previewProps.elevenLabsApiKey!,
@@ -516,6 +612,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
         const totalAudio = allAudioTasks.length;
         setAudioTotal(totalAudio);
+        currentAudioTotalRef.current = totalAudio;
 
         const generatedAudio: GeneratedAudioFile[] = [];
 
@@ -559,6 +656,8 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
             : 100;
           setAudioProgress(progress);
           setAudioGenerated(generatedAudio.length);
+          currentAudioProgressRef.current = progress;
+          currentAudioGeneratedRef.current = generatedAudio.length;
           throwIfCancelled();
         }
         let a = 0;
@@ -589,6 +688,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
         // ========== STEP 3: UPLOAD AUDIO TO S3 (BATCHED VIA YOUR API) ==========
         setGenerationStage("uploading_audio");
+        currentStageRef.current = "uploading_audio";
 
         const UPLOAD_BATCH_SIZE = 50;
         const MIN_BATCH_SIZE = 10;
@@ -745,6 +845,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
         throwIfCancelled();
         console.log("Using the CUSTOM video")
         setGenerationStage("uploading_background");
+        currentStageRef.current = "uploading_background";
 
         const bytesInMB = 1024 * 1024;
         const MIN_PART_SIZE = 10 * bytesInMB;
@@ -828,9 +929,9 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                 PartNumber: item.index + 1,
               };
               completedParts += 1;
-              setBackgroundUploadProgress(
-                Math.round((completedParts / partUploads.length) * 100),
-              );
+              const bgProgress = Math.round((completedParts / partUploads.length) * 100);
+              setBackgroundUploadProgress(bgProgress);
+              currentBackgroundProgressRef.current = bgProgress;
               return;
             } catch (error) {
               if (!isNetworkError(error) || attempt === MAX_PART_RETRIES) {
@@ -932,6 +1033,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
       // ========== STEP 6: START RENDER ==========
       setGenerationStage("starting_render");
+      currentStageRef.current = "starting_render";
 
       const renderRes = await fetch("/api/render", {
         method: "POST",
@@ -975,6 +1077,18 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
         setErrorTitle(null);
       }
 
+      // Log ALL errors (including cancellations) to the server for comprehensive tracking
+      await logErrorToServer(
+        err,
+        cancelled ? null : (parsed?.title ?? null),
+        cancelled ? "User cancelled generation" : (parsed?.message ?? "Unknown error"),
+        {
+          wasCancelled: cancelled,
+          jobIdAtFailure: jobId,
+          rawErrorString: String(err),
+        }
+      );
+
       if (jobId && !renderStartedRef.current) {
         await refundHeldTokens(jobId, cancelled ? "User cancelled generation" : parsed?.message);
       }
@@ -988,6 +1102,13 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
       setAudioTotal(0);
       setBackgroundUploadProgress(0);
       resetCancellationState();
+
+      // Reset tracking refs
+      currentStageRef.current = "idle";
+      currentAudioProgressRef.current = 0;
+      currentAudioGeneratedRef.current = 0;
+      currentAudioTotalRef.current = 0;
+      currentBackgroundProgressRef.current = 0;
     }
   };
 

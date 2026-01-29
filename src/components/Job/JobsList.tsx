@@ -677,7 +677,7 @@ const JobsList = forwardRef((_, ref) => {
                     <div className="pt-3 border-t border-gray-700">
                       <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg">
                         <div className="flex items-start gap-1.5">
-                          <XCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
+                          <XCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-1" />
                           <div className="flex-1">
                             <p className="text-xs font-medium text-rose-400">
                               No Download Available

@@ -50,9 +50,25 @@ export interface RenderJob {
 export interface RenderError {
   id: string; // uuid
   user_id: string;
+  job_id: string | null; // dedicated column for easier querying
   error_type: string;
+  error_source: "client" | "server" | "lambda"; // where the error originated
+  stage: string | null; // generation stage when error occurred
   user_message: string;
+  error_title: string | null; // title shown to user (if any)
   debug_message: string;
-  context: Record<string, unknown>;
+  error_stack: string | null; // stack trace
+  browser_info: string | null; // user agent
+  props_snapshot: Record<string, unknown> | null; // composition props at failure
+  audio_progress: number | null; // 0-100
+  audio_generated: number | null;
+  audio_total: number | null;
+  background_upload_progress: number | null; // 0-100
+  eleven_labs_key_prefix: string | null; // first 8 chars of API key for debugging
+  voice_ids_used: string[] | null;
+  monetization_enabled: boolean | null;
+  custom_background_used: boolean | null;
+  message_count: number | null;
+  context: Record<string, unknown>; // catch-all for other data
   created_at: string;
 }

@@ -20,10 +20,26 @@ async function logErrorToSupabase(
   try {
     const errorData: Omit<RenderError, "id"> = {
       user_id: userId,
+      job_id: jobId,
       error_type: errorType,
+      error_source: "server",
+      stage: "starting_render",
       user_message: userMessage,
+      error_title: null,
       debug_message: debugMessage,
-      context: { ...(context || {}), job_id: jobId },
+      error_stack: context?.stack as string | null ?? null,
+      browser_info: null,
+      props_snapshot: context?.body as Record<string, unknown> | null ?? null,
+      audio_progress: null,
+      audio_generated: null,
+      audio_total: null,
+      background_upload_progress: null,
+      eleven_labs_key_prefix: null,
+      voice_ids_used: null,
+      monetization_enabled: null,
+      custom_background_used: null,
+      message_count: null,
+      context: context || {},
       created_at: new Date().toISOString(),
     };
     await supabaseAdmin.from("render_errors").insert(errorData);
