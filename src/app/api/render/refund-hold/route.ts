@@ -41,13 +41,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const isUserCancellation = reason === "User cancelled generation";
+
     await supabaseAdmin
       .from("render_jobs")
       .update({
-        status: "cancelled",
+        status: isUserCancellation ? "cancelled" : "failed",
         utc_end: new Date().toISOString(),
-        error_message:
-          reason || "Generation cancelled before render was started",
+        error_message: isUserCancellation
+          ? "Generation cancelled before render was started"
+          : reason || "Generation failed before render was started",
       })
       .eq("id", jobId)
       .eq("user_id", userId);
