@@ -25,7 +25,7 @@ export async function GET() {
       systemCreatedAt: data?.created_at ?? null,
     };
     // if(isDevelopment) {
-    //   resp.adminUserIds = data.admin_user_ids ?? [];
+      resp.adminUserIds = data.admin_user_ids ?? [];
     // }
     return NextResponse.json(resp, { status: 200 });
 
