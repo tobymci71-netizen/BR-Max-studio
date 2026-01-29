@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { RenderError } from "@/types/schema";
 import {
   renderMediaOnLambda,
   speculateFunctionName,
