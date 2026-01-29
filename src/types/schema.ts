@@ -54,7 +54,7 @@ export interface RenderError {
   error_type: string;
   error_source: "client" | "server" | "lambda"; // where the error originated
   stage: string | null; // generation stage when error occurred
-  user_message: string;
+  error_message: string; // message shown to user
   error_title: string | null; // title shown to user (if any)
   debug_message: string;
   error_stack: string | null; // stack trace

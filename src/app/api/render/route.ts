@@ -18,15 +18,15 @@ async function logErrorToSupabase(
   context?: Record<string, unknown>,
 ) {
   try {
-    const errorData: Omit<RenderError, "id"> = {
+    const errorData = {
       user_id: userId,
       job_id: jobId,
       error_type: errorType,
       error_source: "server",
       stage: "starting_render",
-      user_message: userMessage,
+      error_message: userMessage || "Unknown error",
       error_title: null,
-      debug_message: debugMessage,
+      debug_message: debugMessage || "No debug message",
       error_stack: context?.stack as string | null ?? null,
       browser_info: null,
       props_snapshot: context?.body as Record<string, unknown> | null ?? null,
