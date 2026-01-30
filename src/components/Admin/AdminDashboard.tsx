@@ -216,7 +216,7 @@ const TableSection = ({
   }, [rows, searchTerm, searchableKeys, normalizedFilters, filterValues]);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-black/40 shadow-2xl shadow-black/30 backdrop-blur">
+    <section className="overflow-visible rounded-2xl border border-white/10 bg-black/40 shadow-2xl shadow-black/30 backdrop-blur">
       <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
