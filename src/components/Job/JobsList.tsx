@@ -300,7 +300,7 @@ const JobsList = forwardRef((_, ref) => {
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "render_jobs",
           filter: `user_id=eq.${user.id}`,
@@ -622,54 +622,29 @@ const JobsList = forwardRef((_, ref) => {
                       </div>
                     </div>
 
-                    <div className="space-y-0.5">
-                      <div className="text-[10px] uppercase tracking-wide text-gray-500">
-                        Status Details
-                      </div>
-                      <div className="space-y-0.5 text-white">
-                        <div>
-                          <span className="text-gray-400">
-                            Status:
-                          </span>{" "}
-                          <span className={`font-medium ${s.color}`}>
-                            {s.label}
-                          </span>
+                    {hasEnded &&
+                      !expired &&
+                      remainingMin !== null &&
+                      job.status === "done" && (
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] uppercase tracking-wide text-gray-500">
+                          Status Details
                         </div>
-                        {hasEnded &&
-                          !expired &&
-                          remainingMin !== null &&
-                          job.status === "done" && (
-                            <div>
-                              <span className="text-gray-400">
-                                Expires in:
-                              </span>{" "}
-                              <span className="text-amber-400 font-medium">
-                                {formatMinutes(remainingMin)}
-                              </span>
-                            </div>
-                          )}
-                        {job.status === "failed" && (
+                        <div className="space-y-0.5 text-white">
                           <div>
-                            <span className="text-rose-400 font-medium">
-                              Render failed
+                            <span className="text-gray-400">
+                              Expires in:
+                            </span>{" "}
+                            <span className="text-amber-400 font-medium">
+                              {formatMinutes(remainingMin)}
                             </span>
                           </div>
-                        )}
-                        {job.status === "cancelled" && (
-                          <div>
-                            <span className="text-orange-400 font-medium">
-                              Job cancelled
-                            </span>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {job.error_message && (
                       <div className="space-y-0.5">
-                        <div className="text-[10px] uppercase tracking-wide text-rose-400">
-                          Error Details
-                        </div>
                         <p className="text-rose-300 text-xs flex items-start gap-1">
                           <AlertCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
                           <span className="flex-1">{job.error_message}</span>
@@ -700,35 +675,16 @@ const JobsList = forwardRef((_, ref) => {
                   {/* Download Actions */}
                   {job.status === "failed" && !job.s3_url && (
                     <div className="pt-3 border-t border-gray-700">
-                      <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg mb-2">
+                      <div className="p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg">
                         <div className="flex items-start gap-1.5">
-                          <XCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
+                          <XCircle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-1" />
                           <div className="flex-1">
-                            <p className="text-xs font-medium text-rose-400 mb-0.5">
-                              Render Failed - No Download Available
-                            </p>
-                            <p className="text-[10px] text-rose-300/80">
-                              {job.error_message ||
-                                "The video rendering process encountered an error. Please try creating a new job."}
+                            <p className="text-xs font-medium text-rose-400">
+                              No Download Available
                             </p>
                           </div>
                         </div>
                       </div>
-                      {!job.is_flagged_for_issue && (
-                        <button
-                          onClick={() => openFlagModal(job.id)}
-                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-all duration-200"
-                        >
-                          <Flag className="w-3.5 h-3.5" />
-                          Report Issue
-                        </button>
-                      )}
-                      {job.is_flagged_for_issue && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-orange-500/30 bg-orange-500/10 text-orange-400">
-                          <Flag className="w-3.5 h-3.5" />
-                          <span>Issue Reported</span>
-                        </div>
-                      )}
                     </div>
                   )}
 
