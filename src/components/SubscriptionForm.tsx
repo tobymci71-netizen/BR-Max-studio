@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ShieldCheck, Check, Zap, Crown, Loader2 } from "lucide-react"
+import { ShieldCheck, Check, Zap, Crown, Loader2, Gift } from "lucide-react"
 import { useUser } from "@clerk/nextjs"
 import { TokenPackage } from "@/types/tokenPackages"
 
@@ -169,6 +169,31 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
             {activeSubscription ? "Browse all available subscription plans" : "Get tokens automatically credited every month"}
           </p>
         </div>
+
+        {/* Free Guide Notice */}
+        {!activeSubscription && (
+          <div className="relative overflow-hidden p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 rounded-xl">
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(251,191,36,0.05)_50%,transparent_100%)]" />
+            <div className="relative flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/50 dark:to-orange-900/50 rounded-lg flex items-center justify-center">
+                <Gift className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                  Free Bonus Included
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
+                  Every plan includes a free guide on how to make money by creating text videos
+                </p>
+              </div>
+              <div className="hidden sm:block flex-shrink-0">
+                <span className="inline-flex items-center px-2.5 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wide rounded-full">
+                  Included Free
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Package Selection */}
         <div>

@@ -216,7 +216,7 @@ const TableSection = ({
   }, [rows, searchTerm, searchableKeys, normalizedFilters, filterValues]);
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-black/40 shadow-2xl shadow-black/30 backdrop-blur">
+    <section className="overflow-visible rounded-2xl border border-white/10 bg-black/40 shadow-2xl shadow-black/30 backdrop-blur">
       <div className="flex flex-col gap-4 border-b border-white/5 px-6 py-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1287,7 +1287,7 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
                       </button>
                       {menuOpen && (
                         <div
-                          className="absolute right-0 top-full mt-2 w-40 rounded-2xl border border-white/10 bg-slate-900/90 p-2 shadow-xl z-50"
+                          className="absolute right-0 top-full -mt-2 w-40 rounded-2xl border border-white/10 bg-slate-900/90 p-2 shadow-xl z-50"
                           onClick={(event) => event.stopPropagation()}
                         >
                           <button
