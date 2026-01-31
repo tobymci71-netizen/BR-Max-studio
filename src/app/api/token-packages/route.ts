@@ -6,6 +6,7 @@ const allowedOrigins = [
   "https://brmax.xyz",
   "https://www.brmax.xyz",
   "https://studio.brmax.xyz",
+  "https://development.brmax.xyz",
   // Development origins
   "http://localhost:3000",
   "http://localhost:3001",

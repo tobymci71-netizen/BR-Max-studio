@@ -1287,7 +1287,7 @@ const AdminDashboard = ({ sessionNonce }: AdminDashboardProps) => {
                       </button>
                       {menuOpen && (
                         <div
-                          className="absolute right-0 top-full mt-2 w-40 rounded-2xl border border-white/10 bg-slate-900/90 p-2 shadow-xl z-50"
+                          className="absolute right-0 top-full -mt-2 w-40 rounded-2xl border border-white/10 bg-slate-900/90 p-2 shadow-xl z-50"
                           onClick={(event) => event.stopPropagation()}
                         >
                           <button
