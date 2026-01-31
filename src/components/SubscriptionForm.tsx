@@ -183,7 +183,7 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                   Free Bonus Included
                 </p>
                 <p className="text-xs text-amber-700 dark:text-amber-300/80 mt-0.5">
-                  Every plan includes a free guide on how to make money by creating text videos
+                  Every plan includes a free begineers guide exactly how to start and make money with text stories
                 </p>
               </div>
               <div className="hidden sm:block flex-shrink-0">
