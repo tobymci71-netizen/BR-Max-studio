@@ -19,7 +19,7 @@ export default function RootLayoutShell({ children }: PropsWithChildren) {
           </div>
         {/* )} */}
         <main
-          className={`flex-1 w-full flex flex-col ${
+          className={`flex-1 w-full min-w-0 flex flex-col overflow-x-hidden ${
             hideChrome ? "" : "pb-8"
           }`}
         >

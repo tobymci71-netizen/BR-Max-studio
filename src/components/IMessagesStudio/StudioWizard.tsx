@@ -57,14 +57,16 @@ export function StudioWizard(props: IMessagesStudioProps) {
   return (
     <Card style={{ overflow: "hidden" }}>
       {/* Progress Indicator */}
-      <div style={{ padding: "24px 24px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ display: "flex", gap: 8 }}>
+      <div className="studio-tabs-container" style={{ padding: "24px 24px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="studio-tabs" style={{ display: "flex", gap: 8 }}>
           {STEPS.map((step, idx) => (
             <button
               key={step.id}
               onClick={() => setCurrentStep(idx)}
+              className="studio-tab-btn"
               style={{
                 flex: 1,
+                minWidth: 60,
                 padding: "12px 8px",
                 background:
                   idx === currentStep
@@ -84,6 +86,9 @@ export function StudioWizard(props: IMessagesStudioProps) {
                 position: "relative",
                 opacity: idx <= currentStep ? 1 : 0.5,
                 outline: idx < currentStep && stepValidation[idx]?.hasErrors ? "1px solid rgba(255,80,80,0.3)" : "none",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
               {idx < currentStep && (
@@ -91,21 +96,23 @@ export function StudioWizard(props: IMessagesStudioProps) {
                   <XCircle
                     size={14}
                     color="#ff8c8c"
+                    className="studio-tab-icon"
                     style={{ position: "absolute", top: 8, right: 8 }}
                     aria-label="Step has validation errors"
                   />
                 ) : (
                   <Check
                     size={14}
+                    className="studio-tab-icon"
                     style={{ position: "absolute", top: 8, right: 8 }}
                     aria-label="Step completed"
                   />
                 )
               )}
-              <div style={{ fontSize: 10, opacity: 0.8, marginBottom: 4 }}>
+              <div className="studio-tab-step-label" style={{ fontSize: 10, opacity: 0.8, marginBottom: 4 }}>
                 Step {idx + 1}
               </div>
-              {step.title}
+              <span className="studio-tab-title">{step.title}</span>
             </button>
           ))}
         </div>
