@@ -535,9 +535,11 @@ function DemoPageContent() {
           margin: "0 auto",
           padding: "0 clamp(16px, 4vw, 32px)",
           alignItems: "start",
+          minWidth: 0,
+          overflowX: "hidden",
         }}
       >
-        <div ref={jobsSectionRef}>
+        <div ref={jobsSectionRef} className="min-w-0 overflow-x-hidden">
           <JobsList ref={jobsListRef} />
         </div>
         {/* <BuildProgress /> */}

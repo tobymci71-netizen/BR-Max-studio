@@ -17,6 +17,7 @@ export function StudioPreview() {
 
   return (
     <Card
+      className="studio-preview-card"
       style={{
         padding: 20,
         background: "rgba(0,0,0,0.4)",
@@ -24,6 +25,7 @@ export function StudioPreview() {
       }}
     >
       <div
+        className="studio-preview-header"
         style={{
           display: "flex",
           alignItems: "center",
@@ -35,28 +37,30 @@ export function StudioPreview() {
         <Eye size={16} />
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Live Preview</h3>
       </div>
-      <Player
-        key={playerKey}
-        component={Main}
-        autoPlay
-        doubleClickToFullscreen
-        initiallyMuted
-        moveToBeginningWhenEnded
-        durationInFrames={durationInFrames}
-        compositionWidth={VIDEO_WIDTH}
-        compositionHeight={VIDEO_HEIGHT}
-        fps={VIDEO_FPS}
-        inputProps={previewProps}
-        loop
-        controls
-        style={{
-          width: "100%",
-          aspectRatio: `${VIDEO_WIDTH} / ${VIDEO_HEIGHT}`,
-          borderRadius: 16,
-          overflow: "hidden",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-        }}
-      />
+      <div className="studio-preview-player-wrapper" style={{ width: "100%" }}>
+        <Player
+          key={playerKey}
+          component={Main}
+          autoPlay
+          doubleClickToFullscreen
+          initiallyMuted
+          moveToBeginningWhenEnded
+          durationInFrames={durationInFrames}
+          compositionWidth={VIDEO_WIDTH}
+          compositionHeight={VIDEO_HEIGHT}
+          fps={VIDEO_FPS}
+          inputProps={previewProps}
+          loop
+          controls
+          style={{
+            width: "100%",
+            aspectRatio: `${VIDEO_WIDTH} / ${VIDEO_HEIGHT}`,
+            borderRadius: 16,
+            overflow: "hidden",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+          }}
+        />
+      </div>
 
       <p
         style={{

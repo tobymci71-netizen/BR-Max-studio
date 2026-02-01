@@ -357,9 +357,9 @@ const JobsList = forwardRef((_, ref) => {
 
   return (
     <>
-      <div className="w-full bg- py-6">
+      <div className="w-full min-w-0 max-w-full bg- py-6 overflow-x-hidden">
         {/* Header Section */}
-        <div className="px-6 py-6 border-b border-gray-700">
+        <div className="px-6 py-6 border-b border-gray-700 min-w-0 overflow-x-hidden">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-accent-primary/10 rounded-lg">
@@ -389,32 +389,36 @@ const JobsList = forwardRef((_, ref) => {
             </button>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+          {/* Filter Tabs - only the options scroll within the same max width */}
+          <div className="flex items-center gap-2 max-w-full min-w-0">
+            <div className="flex items-center gap-2 text-sm text-gray-400 shrink-0">
               <Filter className="w-4 h-4" />
               <span>Filter:</span>
             </div>
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setTimeFilter(option.value)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 border ${timeFilter === option.value
-                    ? "bg-accent-primary text-white border-accent-primary"
-                    : "bg-white text-black border-white hover:bg-gray-100"
-                  }`}
-              >
-                {option.label}
-                <span
-                  className={`ml-2 text-xs ${timeFilter === option.value
-                      ? "text-white/80"
-                      : "text-gray-600"
-                    }`}
-                >
-                  ({option.count})
-                </span>
-              </button>
-            ))}
+            <div className="overflow-x-auto overflow-y-hidden scroll-smooth pb-1 min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
+              <div className="flex items-center gap-2 flex-nowrap min-w-max">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setTimeFilter(option.value)}
+                    className={`shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 border whitespace-nowrap ${timeFilter === option.value
+                        ? "bg-accent-primary text-white border-accent-primary"
+                        : "bg-white text-black border-white hover:bg-gray-100"
+                      }`}
+                  >
+                    {option.label}
+                    <span
+                      className={`ml-2 text-xs ${timeFilter === option.value
+                          ? "text-white/80"
+                          : "text-gray-600"
+                        }`}
+                    >
+                      ({option.count})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
