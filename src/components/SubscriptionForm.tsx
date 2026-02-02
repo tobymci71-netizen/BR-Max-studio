@@ -429,6 +429,11 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
         <div className="text-center text-xs text-zinc-500 dark:text-zinc-400">
           <p>Cancel anytime • Secure payment by Stripe • Tokens auto-renewed monthly</p>
         </div>
+
+        {/* Caveat */}
+        <p className="text-[10px] text-center text-zinc-400 dark:text-zinc-500 max-w-xl mx-auto leading-relaxed">
+          <span className="font-medium">1.</span> Video count depends on video length and is not guaranteed. <span className="font-medium">2.</span> Estimated earnings are not promised and are based on the user&apos;s own work and effort.
+        </p>
       </div>
     </div>
   )
