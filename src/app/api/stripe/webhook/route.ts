@@ -35,9 +35,7 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
   throw new Error("Missing STRIPE_WEBHOOK_SECRET");
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-12-15.clover', // Use latest API version
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // This is critical for webhooks - we need the raw body
 export async function POST(request: Request) {
