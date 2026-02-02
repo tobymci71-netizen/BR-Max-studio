@@ -17,7 +17,6 @@ export function StudioPreview() {
 
   return (
     <Card
-      className="studio-preview-card"
       style={{
         padding: 20,
         background: "rgba(0,0,0,0.4)",
