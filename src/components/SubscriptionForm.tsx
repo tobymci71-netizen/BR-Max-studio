@@ -219,29 +219,43 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                   onClick={() => !isCurrentPlan && !activeSubscription && setSelectedPackage(pkg)}
                   disabled={isCurrentPlan || !!activeSubscription}
                   className={`relative group text-left p-4 rounded-xl border-2 transition-all duration-200 h-full flex flex-col ${
+                    showFirstMonthPrice && !isCurrentPlan && !activeSubscription
+                      ? "ring-2 ring-amber-400/60 dark:ring-amber-400/50 hover:ring-amber-400/80 dark:hover:ring-amber-400/70 " +
+                        (isSelected
+                          ? "border-amber-500 bg-gradient-to-br from-amber-50/80 to-orange-50/60 dark:from-amber-950/30 dark:to-orange-950/20"
+                          : "border-amber-400/80 bg-white dark:bg-zinc-950/50 hover:border-amber-400")
+                      : ""
+                  } ${
                     isCurrentPlan
                       ? "border-green-500 bg-green-50 dark:bg-green-950/20 cursor-default"
                       : activeSubscription
                       ? "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 cursor-not-allowed opacity-60"
-                      : isSelected
+                      : !showFirstMonthPrice && isSelected
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20 shadow-lg"
-                      : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 hover:border-blue-300 dark:hover:border-blue-700"
+                      : !showFirstMonthPrice
+                      ? "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 hover:border-blue-300 dark:hover:border-blue-700"
+                      : ""
                   }`}
                 >
+                  {showFirstMonthPrice && !isCurrentPlan && !activeSubscription && (
+                    <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-bold tracking-wider rounded-full whitespace-nowrap shadow-lg shadow-amber-500/30">
+                      ✨ FIRST MONTH DEAL
+                    </div>
+                  )}
                   {isCurrentPlan && (
                     <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-green-600 text-white text-[9px] font-bold tracking-wider rounded-full whitespace-nowrap flex items-center gap-1">
                       <Crown className="w-2.5 h-2.5" />
                       YOUR PLAN
                     </div>
                   )}
-                  {!isCurrentPlan && !activeSubscription && pkg.popular && (
+                  {!isCurrentPlan && !activeSubscription && !showFirstMonthPrice && pkg.popular && (
                     <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-blue-600 text-white text-[9px] font-bold tracking-wider rounded-full whitespace-nowrap">
                       MOST POPULAR
                     </div>
                   )}
 
                   {isSelected && !isCurrentPlan && !activeSubscription && (
-                    <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                    <div className={`absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center ${showFirstMonthPrice ? "bg-amber-500" : "bg-blue-500"}`}>
                       <Check className="w-3 h-3 text-white stroke-[3]" />
                     </div>
                   )}
@@ -251,6 +265,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                       className={`text-lg font-bold mb-1.5 ${
                         isCurrentPlan
                           ? "text-green-700 dark:text-green-300"
+                          : showFirstMonthPrice && isSelected
+                          ? "text-amber-700 dark:text-amber-300"
                           : isSelected && !activeSubscription
                           ? "text-blue-700 dark:text-blue-300"
                           : "text-zinc-900 dark:text-white"
@@ -262,6 +278,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                       className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs ${
                         isCurrentPlan
                           ? "bg-green-100 dark:bg-green-900/50"
+                          : showFirstMonthPrice && isSelected
+                          ? "bg-amber-100 dark:bg-amber-900/50"
                           : isSelected && !activeSubscription
                           ? "bg-blue-100 dark:bg-blue-900/50"
                           : "bg-zinc-100 dark:bg-zinc-900"
@@ -271,6 +289,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                         className={`w-3 h-3 ${
                           isCurrentPlan
                             ? "text-green-600 dark:text-green-400"
+                            : showFirstMonthPrice && isSelected
+                            ? "text-amber-600 dark:text-amber-400"
                             : isSelected && !activeSubscription
                             ? "text-blue-600 dark:text-blue-400"
                             : "text-zinc-500"
@@ -280,6 +300,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                         className={`font-semibold ${
                           isCurrentPlan
                             ? "text-green-700 dark:text-green-300"
+                            : showFirstMonthPrice && isSelected
+                            ? "text-amber-700 dark:text-amber-300"
                             : isSelected && !activeSubscription
                             ? "text-blue-700 dark:text-blue-300"
                             : "text-zinc-700 dark:text-zinc-300"
@@ -303,6 +325,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                             className={`text-3xl font-bold ${
                               isCurrentPlan
                                 ? "text-green-600 dark:text-green-400"
+                                : showFirstMonthPrice
+                                ? "text-amber-600 dark:text-amber-400"
                                 : isSelected && !activeSubscription
                                 ? "text-blue-600 dark:text-blue-400"
                                 : "text-zinc-900 dark:text-white"
@@ -310,7 +334,7 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                           >
                             {firstMonthPrice.toFixed(2)}
                           </span>
-                          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">/first month</span>
+                          <span className={`text-sm font-medium ${showFirstMonthPrice ? "text-amber-600 dark:text-amber-400" : "text-zinc-500 dark:text-zinc-400"}`}>/first month</span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 w-full mt-0.5">
                             then ${pricePerMonth.toFixed(2)}/month
                           </span>
@@ -357,6 +381,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                             className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center mt-0.5 ${
                               isCurrentPlan
                                 ? "bg-green-100 dark:bg-green-900/50"
+                                : showFirstMonthPrice && isSelected
+                                ? "bg-amber-100 dark:bg-amber-900/50"
                                 : isSelected && !activeSubscription
                                 ? "bg-blue-100 dark:bg-blue-900/50"
                                 : "bg-zinc-100 dark:bg-zinc-900"
@@ -366,6 +392,8 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                               className={`w-2.5 h-2.5 stroke-[3] ${
                                 isCurrentPlan
                                   ? "text-green-600 dark:text-green-400"
+                                  : showFirstMonthPrice && isSelected
+                                  ? "text-amber-600 dark:text-amber-400"
                                   : isSelected && !activeSubscription
                                   ? "text-blue-600 dark:text-blue-400"
                                   : "text-green-600 dark:text-green-500"
@@ -374,7 +402,7 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                           </div>
                           <span
                             className={`leading-snug ${
-                              isCurrentPlan || (isSelected && !activeSubscription) ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-600 dark:text-zinc-400"
+                              isCurrentPlan || (isSelected && !activeSubscription) || (showFirstMonthPrice && isSelected) ? "text-zinc-800 dark:text-zinc-200" : "text-zinc-600 dark:text-zinc-400"
                             }`}
                           >
                             {feature}
