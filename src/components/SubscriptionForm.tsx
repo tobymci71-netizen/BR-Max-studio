@@ -206,6 +206,10 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
               const isCurrentPlan = activeSubscription?.packageId === pkg.id
               // @ts-expect-error priceUSD type
               const pricePerMonth = parseFloat(pkg.priceUSD)
+              const firstMonthPrice =
+                pkg.firstMonthPrice != null ? parseFloat(String(pkg.firstMonthPrice)) : null
+              const showFirstMonthPrice =
+                firstMonthPrice !== null && !Number.isNaN(firstMonthPrice) && firstMonthPrice < pricePerMonth
               // @ts-expect-error tokens type
               const pricePerThousand = (pricePerMonth / parseInt(pkg.tokens)) * 1000
 
@@ -288,23 +292,49 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                   </div>
 
                   <div className="mb-4">
-                    <div className="flex items-baseline gap-1.5 mb-1">
-                      <span className="text-lg font-medium text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-400/60 mr-1">
-                         ${(pricePerMonth + 20).toFixed(2)}
-                      </span>
-                      <span className="text-lg text-zinc-500 dark:text-zinc-400">$</span>
-                      <span
-                        className={`text-3xl font-bold ${
-                          isCurrentPlan
-                            ? "text-green-600 dark:text-green-400"
-                            : isSelected && !activeSubscription
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-zinc-900 dark:text-white"
-                        }`}
-                      >
-                        {pricePerMonth.toFixed(2)}
-                      </span>
-                      <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">/month</span>
+                    <div className="flex items-baseline gap-1.5 mb-1 flex-wrap">
+                      {showFirstMonthPrice ? (
+                        <>
+                          <span className="text-lg font-medium text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-400/60 mr-1">
+                            ${(pricePerMonth + 20).toFixed(2)}
+                          </span>
+                          <span className="text-lg text-zinc-500 dark:text-zinc-400">$</span>
+                          <span
+                            className={`text-3xl font-bold ${
+                              isCurrentPlan
+                                ? "text-green-600 dark:text-green-400"
+                                : isSelected && !activeSubscription
+                                ? "text-blue-600 dark:text-blue-400"
+                                : "text-zinc-900 dark:text-white"
+                            }`}
+                          >
+                            {firstMonthPrice.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">/first month</span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 w-full mt-0.5">
+                            then ${pricePerMonth.toFixed(2)}/month
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg font-medium text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-400/60 mr-1">
+                            ${(pricePerMonth + 20).toFixed(2)}
+                          </span>
+                          <span className="text-lg text-zinc-500 dark:text-zinc-400">$</span>
+                          <span
+                            className={`text-3xl font-bold ${
+                              isCurrentPlan
+                                ? "text-green-600 dark:text-green-400"
+                                : isSelected && !activeSubscription
+                                ? "text-blue-600 dark:text-blue-400"
+                                : "text-zinc-900 dark:text-white"
+                            }`}
+                          >
+                            {pricePerMonth.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">/month</span>
+                        </>
+                      )}
                     </div>
                     <div
                       className={`text-[10px] font-medium px-1.5 py-0.5 rounded inline-block ${
@@ -375,11 +405,30 @@ export default function SubscriptionForm({ className = "" }: SubscriptionFormPro
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                  {/* @ts-expect-error priceUSD type */}
-                  ${parseFloat(selectedPackage.priceUSD).toFixed(2)}
-                </div>
-                <div className="text-[10px] text-blue-600 dark:text-blue-400">per month</div>
+                {(() => {
+                  const regPrice = parseFloat(selectedPackage.priceUSD as unknown as string)
+                  const firstMonth =
+                    selectedPackage.firstMonthPrice != null
+                      ? parseFloat(String(selectedPackage.firstMonthPrice))
+                      : null
+                  const showFirst = firstMonth !== null && !Number.isNaN(firstMonth) && firstMonth < regPrice
+                  return (
+                    <>
+                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                        {showFirst ? (
+                          <>
+                            ${firstMonth.toFixed(2)} <span className="text-sm font-medium">first month</span>
+                          </>
+                        ) : (
+                          `$${regPrice.toFixed(2)}`
+                        )}
+                      </div>
+                      <div className="text-[10px] text-blue-600 dark:text-blue-400">
+                        {showFirst ? `then $${regPrice.toFixed(2)}/month` : "per month"}
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
