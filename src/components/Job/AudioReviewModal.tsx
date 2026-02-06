@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Zap, Upload, Play, Pause } from "lucide-react";
+import { Loader2, Zap, Upload, Play, Pause, Video } from "lucide-react";
 import { Modal } from "../Modal";
 import { generateAudioFile } from "@/helpers/audioGeneration";
 import { DEFAULT_VOICE_SETTINGS } from "@/types/constants";
@@ -40,8 +40,32 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   );
   const [apiKey, setApiKey] = useState("");
   const [voiceId, setVoiceId] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState<"natural" | "snappy">("natural");
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
+  const [startingVideo, setStartingVideo] = useState(false);
+
+  // Load saved ElevenLabs settings from studio localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem("studio-settings");
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (parsed.elevenLabsApiKey) {
+        setApiKey(parsed.elevenLabsApiKey);
+      }
+      if (Array.isArray(parsed.voices) && parsed.voices.length > 0) {
+        // Use the first voice with a voiceId
+        const voiceWithId = parsed.voices.find((v: { voiceId?: string }) => v.voiceId);
+        if (voiceWithId?.voiceId) {
+          setVoiceId(voiceWithId.voiceId);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load saved ElevenLabs settings:", error);
+    }
+  }, [open]);
   const [audioLoading, setAudioLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -91,6 +115,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setEditText("");
     setApiKey("");
     setVoiceId("");
+    setVoiceStyle("natural");
     setSpeed(DEFAULT_VOICE_SETTINGS.speed);
     setStability(DEFAULT_VOICE_SETTINGS.stability);
     setSimilarity(DEFAULT_VOICE_SETTINGS.similarity_boost);
@@ -99,6 +124,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setRegenerating(false);
     setReplacingId(null);
     setShowRegenerateOptions(false);
+    setStartingVideo(false);
     onClose();
   };
 
@@ -152,7 +178,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         text: editText,
         voiceId: voiceId.trim(),
         apiKey: apiKey.trim(),
-        enableSilenceTrimming: false,
+        enableSilenceTrimming: voiceStyle === "snappy",
         voiceSettings: {
           speed,
           stability,
@@ -172,6 +198,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           mimeType: "audio/mpeg",
           updatedText: editText,
           duration,
+          audioType: "re-generated",
         }),
       });
 
@@ -230,12 +257,46 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to replace audio");
 
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === selectedId
+            ? { ...item, audioType: "replaced" }
+            : item,
+        ),
+      );
+
       if (audioRef.current) audioRef.current.load();
     } catch (err) {
       console.error("Error replacing audio:", err);
       setError(err instanceof Error ? err.message : "Failed to replace audio");
     } finally {
       setReplacingId(null);
+    }
+  };
+
+  const handleStartVideoRendering = async () => {
+    if (!jobId) return;
+
+    try {
+      setStartingVideo(true);
+      setError(null);
+
+      const res = await fetch("/api/render/start-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || "Failed to start video rendering");
+
+      // Close the modal after successfully starting video rendering
+      handleClose();
+    } catch (err) {
+      console.error("Error starting video rendering:", err);
+      setError(err instanceof Error ? err.message : "Failed to start video rendering");
+    } finally {
+      setStartingVideo(false);
     }
   };
 
@@ -578,7 +639,21 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                         />
                       </div>
                     </div>
-                    
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-gray-400">
+                        Voice Style
+                      </label>
+                      <select
+                        value={voiceStyle}
+                        onChange={(e) => setVoiceStyle(e.target.value as "natural" | "snappy")}
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-600/50 bg-gray-900/60 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all cursor-pointer"
+                      >
+                        <option value="natural">Natural</option>
+                        <option value="snappy">Snappy (trims silence)</option>
+                      </select>
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleRegenerateAudio}
@@ -672,6 +747,33 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           })()}
         </div>
       </div>
+
+      {/* Start Video Rendering Button */}
+      {!loading && items.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-gray-700/50">
+          <button
+            type="button"
+            onClick={handleStartVideoRendering}
+            disabled={startingVideo}
+            className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 text-white text-lg font-bold shadow-xl hover:shadow-2xl hover:from-emerald-500 hover:via-green-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
+          >
+            {startingVideo ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Starting Video Rendering...
+              </>
+            ) : (
+              <>
+                <Video className="w-6 h-6" />
+                Start Video Rendering
+              </>
+            )}
+          </button>
+          <p className="text-center text-xs text-gray-500 mt-2">
+            This will generate the final video with all your audio changes
+          </p>
+        </div>
+      )}
     </Modal>
   );
 }
