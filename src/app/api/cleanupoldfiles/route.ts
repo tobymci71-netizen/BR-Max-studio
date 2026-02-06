@@ -32,7 +32,7 @@ export async function GET() {
     const { data: staleHolds } = await supabaseAdmin
       .from("render_jobs")
       .select("*")
-      .eq("status", "queued")
+      .in("status", ["queued", "processing", "audio_generation"])
       .eq("is_flagged_for_issue", false)
       .is("lambda_render_id", null)
       .lt("utc_start", fifteenMinutesAgo);

@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       await supabaseAdmin
         .from("render_jobs")
         .update({
-          status: "done",
+          status: "video_generated",
           s3_url,
           webhook_payload: payload,
           utc_end: utcEnd,

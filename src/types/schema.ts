@@ -26,13 +26,66 @@ export type ProgressResponse =
       size: number;
     };
 
-export type RenderStatus = "queued" | "processing" | "done" | "failed" | "cancelled";
+/** Lifecycle status for render_jobs. Matches DB enum. Includes legacy values for backward compat. */
+export type RenderStatus =
+  | "queued" // legacy: pre-video stage
+  | "processing"
+  | "audio_generation"
+  | "audio_uploaded"
+  | "awaiting_to_start_render"
+  | "video_generation"
+  | "video_generated"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export const RENDER_STATUS_VALUES: readonly RenderStatus[] = [
+  "queued",
+  "processing",
+  "audio_generation",
+  "audio_uploaded",
+  "awaiting_to_start_render",
+  "video_generation",
+  "video_generated",
+  "done",
+  "failed",
+  "cancelled",
+] as const;
+
+/** Statuses that mean the job is still in progress (not terminal). Includes legacy queued. */
+export const RENDER_STATUS_IN_PROGRESS: RenderStatus[] = [
+  "queued",
+  "processing",
+  "audio_generation",
+  "audio_uploaded",
+  "awaiting_to_start_render",
+  "video_generation",
+];
+
+/** Statuses that allow cancelling the job. Includes legacy queued. */
+export const RENDER_STATUS_CANCELLABLE: RenderStatus[] = [
+  "queued",
+  "processing",
+  "audio_generation",
+  "audio_uploaded",
+  "awaiting_to_start_render",
+  "video_generation",
+];
+
+/** Statuses that count as completed (success). */
+export const RENDER_STATUS_COMPLETED: RenderStatus[] = ["done", "video_generated"];
+
+/** Generation phase: audio (preview/confirm) then video (final render). Matches DB enum render_job_stage. */
+export type RenderJobStage = "audio" | "video";
+
+export const RENDER_JOB_STAGES: readonly RenderJobStage[] = ["audio", "video"];
 
 export interface RenderJob {
   id: string; // uuid
   user_id: string;
   job_id: string;
   status: RenderStatus; // enum
+  stage: RenderJobStage;
   json_path: string | null;
   s3_url: string | null;
   composition_props: Record<string, typeof defaultMyCompProps> | null;

@@ -27,11 +27,12 @@ import {
 import { useSupabase } from "@/hooks/useSupabaseClient";
 import { Button } from "../Button";
 import { formatMinutes } from "@/lib/utils";
+import { AudioReviewModal } from "./AudioReviewModal";
 
 type TimeFilter = "all" | "1h" | "6h" | "today" | "yesterday";
 
-/* Updated status map with modern color scheme */
-const STATUS_MAP = {
+/* Updated status map with modern color scheme. Includes legacy (queued) for backward compat. */
+const STATUS_MAP: Record<string, { label: string; icon: typeof Clock; color: string; bg: string; dot: string }> = {
   queued: {
     label: "Queued",
     icon: Clock,
@@ -41,10 +42,45 @@ const STATUS_MAP = {
   },
   processing: {
     label: "Processing",
+    icon: Clock,
+    color: "text-amber-400",
+    bg: "bg-amber-500/15 border-amber-500/40",
+    dot: "bg-amber-400",
+  },
+  audio_generation: {
+    label: "Generating audio",
+    icon: Loader2,
+    color: "text-violet-400",
+    bg: "bg-violet-500/15 border-violet-500/40",
+    dot: "bg-violet-400",
+  },
+  audio_uploaded: {
+    label: "Audio uploaded",
+    icon: CheckCircle2,
+    color: "text-sky-400",
+    bg: "bg-sky-500/15 border-sky-500/40",
+    dot: "bg-sky-400",
+  },
+  awaiting_to_start_render: {
+    label: "Awaiting confirmation",
+    icon: Clock,
+    color: "text-amber-400",
+    bg: "bg-amber-500/15 border-amber-500/40",
+    dot: "bg-amber-400",
+  },
+  video_generation: {
+    label: "Rendering video",
     icon: Loader2,
     color: "text-cyan-400",
     bg: "bg-cyan-500/15 border-cyan-500/40",
     dot: "bg-cyan-400",
+  },
+  video_generated: {
+    label: "Complete",
+    icon: CheckCircle2,
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/15 border-emerald-500/40",
+    dot: "bg-emerald-400",
   },
   done: {
     label: "Complete",
@@ -67,7 +103,20 @@ const STATUS_MAP = {
     bg: "bg-orange-500/15 border-orange-500/40",
     dot: "bg-orange-400",
   },
-} as const;
+};
+
+const IN_PROGRESS_STATUSES = [
+  "queued",
+  "processing",
+  "audio_generation",
+  "audio_uploaded",
+  "awaiting_to_start_render",
+  "video_generation",
+] as const;
+const isInProgress = (status: string) =>
+  (IN_PROGRESS_STATUSES as readonly string[]).includes(status);
+const isCompleted = (status: string) =>
+  status === "done" || status === "video_generated";
 
 /* --------------------------------- HELPERS -------------------------------- */
 function isToday(d: Date) {
@@ -193,6 +242,8 @@ const JobsList = forwardRef((_, ref) => {
   const [inlineError, setInlineError] = useState<string | null>(null);
 
   const [now, setNow] = useState<number>(Date.now());
+  const [startingJobId, setStartingJobId] = useState<string | null>(null);
+  const [audioReviewJobId, setAudioReviewJobId] = useState<string | null>(null);
 
   // Flag modal state
   const [flagModalOpen, setFlagModalOpen] = useState(false);
@@ -278,6 +329,28 @@ const JobsList = forwardRef((_, ref) => {
 
     setLoading(false);
     setHasFetchedJobs(true);
+  };
+
+  const handleStartVideo = async (jobId: string) => {
+    try {
+      setStartingJobId(jobId);
+      const res = await fetch("/api/render/start-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("Failed to start video generation", data);
+      }
+
+      await refreshJobs();
+    } catch (err) {
+      console.error("Error starting video generation:", err);
+    } finally {
+      setStartingJobId(null);
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -515,9 +588,7 @@ const JobsList = forwardRef((_, ref) => {
         {!loading && filteredJobs.length > 0 && (
           <div className="border-t border-b border-gray-700 grid grid-cols-1 md:grid-cols-2">
             {filteredJobs.map((job) => {
-              const s = STATUS_MAP[
-                job.status as keyof typeof STATUS_MAP
-              ] ?? {
+              const s = STATUS_MAP[job.status] ?? {
                 label: "Unknown",
                 icon: AlertCircle,
                 color: "text-muted-foreground",
@@ -548,6 +619,17 @@ const JobsList = forwardRef((_, ref) => {
                 : null;
               const expired = expiryMs ? now > expiryMs : false;
 
+              // Confirmation window: 1 hour from job start for awaiting_to_start_render
+              const confirmExpiryMs = job.utc_start
+                ? new Date(job.utc_start).getTime() + 60 * 60 * 1000
+                : null;
+              const confirmRemainingMin =
+                confirmExpiryMs !== null
+                  ? ceilMinutes(confirmExpiryMs - now)
+                  : null;
+              const confirmExpired =
+                confirmExpiryMs !== null ? now > confirmExpiryMs : false;
+
               return (
                 <div
                   key={job.id}
@@ -560,10 +642,10 @@ const JobsList = forwardRef((_, ref) => {
                         className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${s.bg}`}
                       >
                         <div
-                          className={`w-1.5 h-1.5 rounded-full ${s.dot} ${job.status === "processing" ? "animate-pulse" : ""}`}
+                          className={`w-1.5 h-1.5 rounded-full ${s.dot} ${isInProgress(job.status) ? "animate-pulse" : ""}`}
                         ></div>
                         <Icon
-                          className={`w-3.5 h-3.5 ${s.color} ${job.status === "processing" ? "animate-spin" : ""}`}
+                          className={`w-3.5 h-3.5 ${s.color} ${isInProgress(job.status) ? "animate-spin" : ""}`}
                         />
                         <span className={`text-xs font-semibold ${s.color}`}>
                           {s.label}
@@ -625,7 +707,7 @@ const JobsList = forwardRef((_, ref) => {
                     {hasEnded &&
                       !expired &&
                       remainingMin !== null &&
-                      job.status === "done" && (
+                      isCompleted(job.status) && (
                       <div className="space-y-0.5">
                         <div className="text-[10px] uppercase tracking-wide text-gray-500">
                           Status Details
@@ -653,14 +735,19 @@ const JobsList = forwardRef((_, ref) => {
                     )}
                   </div>
 
-                  {/* Progress Bar - Only for processing/queued */}
-                  {(job.status === "processing" || job.status === "queued") && (
+                  {/* Progress Bar - Only for active in-progress (not awaiting confirmation) */}
+                  {isInProgress(job.status) &&
+                    job.status !== "awaiting_to_start_render" && (
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-xs font-medium text-white">
-                          {job.status === "queued"
-                            ? "Generating audio..."
-                            : "Rendering video..."}
+                          {job.status === "video_generation"
+                            ? "Rendering video..."
+                            : job.status === "audio_generation" || job.status === "processing" || job.status === "queued"
+                              ? "Generating audio..."
+                              : job.status === "awaiting_to_start_render"
+                                ? "Awaiting your confirmation..."
+                                : "Processing..."}
                         </span>
                       </div>
                       <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
@@ -668,6 +755,47 @@ const JobsList = forwardRef((_, ref) => {
                           className="h-full rounded-full bg-accent-primary animate-pulse"
                           style={{ width: "50%" }}
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Awaiting confirmation: review audio & start video, with timer */}
+                  {job.status === "awaiting_to_start_render" && (
+                    <div className="mb-3 pt-3 border-t border-gray-700 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-gray-300">
+                          Review your generated audio, then start video generation.
+                        </span>
+                        {confirmRemainingMin !== null && !confirmExpired && (
+                          <div className="flex items-center gap-1 text-amber-400">
+                            <Clock className="w-3 h-3" />
+                            <span className="font-medium">
+                              Time left: {formatMinutes(confirmRemainingMin)}
+                            </span>
+                          </div>
+                        )}
+                        {confirmExpired && (
+                          <span className="text-rose-400 text-xs font-medium">
+                            Confirmation window expired
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          disabled={confirmExpired}
+                          onClick={() => setAudioReviewJobId(job.id)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-600 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Review Audio
+                        </button>
+                        <button
+                          disabled={confirmExpired || startingJobId === job.id}
+                          onClick={() => handleStartVideo(job.id)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent-primary text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Zap className="w-3 h-3" />
+                          Start video generation
+                        </button>
                       </div>
                     </div>
                   )}
@@ -706,7 +834,7 @@ const JobsList = forwardRef((_, ref) => {
                     </div>
                   )}
 
-                  {job.status === "done" && !job.s3_url && (
+                  {isCompleted(job.status) && !job.s3_url && (
                     <div className="pt-3 border-t border-gray-700">
                       <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg mb-2">
                         <div className="flex items-start gap-1.5">
@@ -740,7 +868,7 @@ const JobsList = forwardRef((_, ref) => {
                     </div>
                   )}
 
-                  {job.s3_url && job.status === "done" && (
+                  {job.s3_url && isCompleted(job.status) && (
                     <div className="pt-3 border-t border-gray-700">
                       {expired && (
                         <div className="mb-2 p-2 bg-rose-500/10 border border-rose-500/30 rounded-lg">
@@ -841,6 +969,11 @@ const JobsList = forwardRef((_, ref) => {
           </div>
         )}
       </div>
+
+      <AudioReviewModal
+        jobId={audioReviewJobId}
+        onClose={() => setAudioReviewJobId(null)}
+      />
 
       {flagModalOpen && (
         <div

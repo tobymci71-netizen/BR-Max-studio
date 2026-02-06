@@ -6,7 +6,7 @@ import {
   speculateFunctionName,
 } from "@remotion/lambda/client";
 import { AwsRegion } from "@remotion/lambda/client";
-import { DISK, RAM, REGION, TIMEOUT } from "../../../../config.mjs";
+import { DISK, RAM, REGION, TIMEOUT } from "../../../../../config.mjs";
 
 async function logErrorToSupabase(
   userId: string,
@@ -14,21 +14,21 @@ async function logErrorToSupabase(
   errorType: string,
   userMessage: string,
   debugMessage: string,
-  context?: Record<string, unknown>,
+  context?: Record<string, unknown>
 ) {
   try {
-    const errorData = {
+    await supabaseAdmin.from("render_errors").insert({
       user_id: userId,
       job_id: jobId,
       error_type: errorType,
       error_source: "server",
-      stage: "starting_render",
+      stage: "starting_video",
       error_message: userMessage || "Unknown error",
       error_title: null,
       debug_message: debugMessage || "No debug message",
-      error_stack: context?.stack as string | null ?? null,
+      error_stack: (context?.stack as string) ?? null,
       browser_info: null,
-      props_snapshot: context?.body as Record<string, unknown> | null ?? null,
+      props_snapshot: (context?.body as Record<string, unknown>) ?? null,
       audio_progress: null,
       audio_generated: null,
       audio_total: null,
@@ -38,84 +38,87 @@ async function logErrorToSupabase(
       monetization_enabled: null,
       custom_background_used: null,
       message_count: null,
-      context: context || {},
+      context: context ?? {},
       created_at: new Date().toISOString(),
-    };
-    await supabaseAdmin.from("render_errors").insert(errorData);
+    });
   } catch (logError) {
     console.error("Failed to log error to Supabase:", logError);
   }
 }
 
+/**
+ * Starts video generation (Lambda render) for a job after user has confirmed audio.
+ * Call with jobId and optional background info (s3Key, backgroundName).
+ * Job must already have composition_props saved (e.g. via save-composition-props after audio upload).
+ */
 export async function POST(request: Request) {
   const { userId } = await auth();
-  if (!userId) {
+  const uid = userId;
+  if (!uid) {
     return NextResponse.json(
       {
         error: "Authentication required",
-        message: "Please sign in to start rendering videos",
+        message: "Please sign in to start video generation",
       },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
   let jobId: string | null = null;
   try {
     const body = await request.json();
-    const { s3Key, props, backgroundName, jobId: bodyJobId } = body;
+    const { jobId: bodyJobId, s3Key, backgroundName } = body;
     jobId = bodyJobId;
-    // Validation
-    if (!props) {
-      await logErrorToSupabase(
-        userId,
-        null,
-        "validation_error",
-        "Missing required information",
-        "Missing props in request body",
-        { body },
-      );
+
+    if (!jobId) {
       return NextResponse.json(
-        {
-          error: "Missing required information",
-          message: "Please provide both file name and video properties",
-        },
-        { status: 400 },
+        { error: "jobId is required" },
+        { status: 400 }
       );
     }
 
-    const { data: existingJob } = await supabaseAdmin
+    const { data: job, error: fetchError } = await supabaseAdmin
       .from("render_jobs")
-      .select("*")
+      .select("id, composition_props, stage")
       .eq("id", jobId)
-      .eq("user_id", userId)
+      .eq("user_id", uid)
       .single();
 
-    if (!existingJob) {
+    if (fetchError || !job) {
       return NextResponse.json({ error: "Invalid job ID" }, { status: 400 });
     }
 
-    // Update supabase job with the composition props
-    await supabaseAdmin.from("render_jobs").update({composition_props: props}).eq("id", jobId).eq("user_id", userId);
-
-  
-    // ========== BACKGROUND VIDEO ==========
-    let backgroundVideoUrl: string;
-
-    if (s3Key && s3Key.startsWith("uploads/")) {
-      backgroundVideoUrl = `https://${process.env.NEXT_PUBLIC_AWS_BUCKET}.s3.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${s3Key}`;
-    } else {
-      backgroundVideoUrl = backgroundName;
+    const props = job.composition_props as Record<string, unknown> | null;
+    if (!props) {
+      return NextResponse.json(
+        {
+          error: "Job has no composition props",
+          message: "Save composition props (e.g. after audio upload) before starting video.",
+        },
+        { status: 400 }
+      );
     }
 
-    // ========== PREPARE FINAL INPUT PROPS ==========
+    // Resolve background video URL (same logic as original render route)
+    let backgroundVideoUrl: string;
+    if (s3Key && typeof s3Key === "string" && s3Key.startsWith("uploads/")) {
+      backgroundVideoUrl = `https://${process.env.NEXT_PUBLIC_AWS_BUCKET}.s3.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${s3Key}`;
+    } else if (backgroundName && typeof backgroundName === "string") {
+      backgroundVideoUrl = backgroundName;
+    } else {
+      // Default background
+      const bucket = process.env.NEXT_PUBLIC_AWS_BUCKET;
+      const region = process.env.NEXT_PUBLIC_AWS_REGION;
+      backgroundVideoUrl = `https://${bucket}.s3.${region}.amazonaws.com/background_video.mp4`;
+    }
+
     const inputProps = {
       ...props,
       backgroundVideo: backgroundVideoUrl,
     };
 
-    console.log(`🚀 Starting Lambda render for job ${jobId}`);
+    console.log(`🚀 Starting Lambda render for job ${jobId} (stage: video)`);
 
-    // ========== START LAMBDA RENDER ==========
     const result = await renderMediaOnLambda({
       codec: "h264",
       functionName: speculateFunctionName({
@@ -124,9 +127,8 @@ export async function POST(request: Request) {
         timeoutInSeconds: TIMEOUT,
       }),
       deleteAfter: "1-day",
-      // downloadBehavior: {"type": "download", fileName: null},
       region: REGION as AwsRegion,
-      serveUrl: `br-max`,
+      serveUrl: "br-max",
       composition: "MyComp",
       inputProps,
       privacy: "public",
@@ -136,17 +138,16 @@ export async function POST(request: Request) {
       },
     });
 
-    // ========== UPDATE WITH LAMBDA METADATA ==========
     await supabaseAdmin
       .from("render_jobs")
       .update({
         status: "video_generation",
+        stage: "video",
         lambda_render_id: result.renderId,
         lambda_bucket_name: result.bucketName,
-        render_details: result
       })
       .eq("id", jobId)
-      .eq("user_id", userId);
+      .eq("user_id", uid);
 
     console.log(`✅ Lambda render started: ${result.renderId}`);
 
@@ -161,15 +162,15 @@ export async function POST(request: Request) {
     const message =
       err instanceof Error ? err.message : "Unknown error occurred";
     const stack = err instanceof Error ? err.stack : undefined;
-    console.error("💥 Render API error:", err);
+    console.error("💥 Start video API error:", err);
 
     await logErrorToSupabase(
-      userId,
+      uid,
       jobId,
       "unexpected_error",
       "An unexpected error occurred",
-      `Unexpected error in render API: ${message}`,
-      { error: message, stack },
+      `Unexpected error in start-video API: ${message}`,
+      { error: message, stack }
     );
 
     if (jobId) {
@@ -181,17 +182,17 @@ export async function POST(request: Request) {
           error_message: message,
         })
         .eq("id", jobId)
-        .eq("user_id", userId);
+        .eq("user_id", uid);
     }
 
     return NextResponse.json(
       {
         error: "An unexpected error occurred",
         message:
-          "Something went wrong while processing your request. Please try again.",
+          "Something went wrong while starting video generation. Please try again.",
         debug: { message, stack },
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

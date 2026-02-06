@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { auth } from "@clerk/nextjs/server";
-
-const CANCELLABLE_STATUSES = ["queued", "processing"] as const;
+import { RENDER_STATUS_CANCELLABLE } from "@/types/schema";
 
 export const dynamic = "force-dynamic"; // no cache for mutations
 
@@ -31,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   // Terminal states
-  if (job.status === "done") {
+  if (job.status === "done" || job.status === "video_generated") {
     return NextResponse.json(
       { status: "blocked", message: "Video already finished; cannot cancel.", job },
       { status: 409 },
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
     })
     .eq("id", jobId)
     .eq("user_id", userId)
-    .in("status", CANCELLABLE_STATUSES as unknown as string[]) // enum ok as strings
+    .in("status", RENDER_STATUS_CANCELLABLE as unknown as string[])
     .select()
     .maybeSingle(); // <- does NOT throw when 0 rows matched
 

@@ -480,6 +480,16 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
         setGenerationStage("generating_audio");
         currentStageRef.current = "generating_audio";
 
+        try {
+          await fetch("/api/render/update-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jobId, status: "audio_generation" }),
+          });
+        } catch {
+          // Non-fatal; job status may still be processing
+        }
+
         const planDetails = await getPlanDetails(
           previewProps.elevenLabsApiKey!,
         );
@@ -895,6 +905,40 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
             }
           }
         }
+
+      // ========== STOP AFTER AUDIO: save composition props and end flow ==========
+      const buildInputForSave =
+        monetizationContext?.enabled && previewProps.messages.length > 0
+          ? {
+              ...previewProps,
+              messages: insertMonetizationCommand(
+                previewProps.messages,
+                monetizationContext.beforeMessageCount,
+              ),
+            }
+          : previewProps;
+
+      const { previewProps: finalPreviewProps } = buildPreviewProps(buildInputForSave, {
+        forceMessageTiming: true,
+      });
+
+      const saveRes = await fetch("/api/render/save-composition-props", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, props: finalPreviewProps }),
+      });
+      if (!saveRes.ok) {
+        const saveData = await saveRes.json().catch(() => ({}));
+        throw new Error(saveData.error || "Failed to save composition props");
+      }
+
+      console.log("✅ Audio saved to AWS; composition props saved. Flow stopped until user confirms video.");
+      setGenerationStage("done");
+      if (jobsListRef.current) await jobsListRef.current.refreshJobs();
+      if (jobsSectionRef.current) {
+        jobsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
       }
 
       throwIfCancelled();
