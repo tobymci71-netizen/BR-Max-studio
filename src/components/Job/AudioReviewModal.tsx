@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Zap, Upload, Play, Pause, Video } from "lucide-react";
+import { Loader2, Zap, Upload, Play, Video } from "lucide-react";
 import { Modal } from "../Modal";
 import { generateAudioFile } from "@/helpers/audioGeneration";
 import { DEFAULT_VOICE_SETTINGS } from "@/types/constants";

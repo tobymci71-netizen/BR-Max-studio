@@ -745,9 +745,7 @@ const JobsList = forwardRef((_, ref) => {
                             ? "Rendering video..."
                             : job.status === "audio_generation" || job.status === "processing" || job.status === "queued"
                               ? "Generating audio..."
-                              : job.status === "awaiting_to_start_render"
-                                ? "Awaiting your confirmation..."
-                                : "Processing..."}
+                              : "Processing..."}
                         </span>
                       </div>
                       <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">

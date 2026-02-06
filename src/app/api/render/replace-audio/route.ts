@@ -11,6 +11,16 @@ const s3 = new S3Client({
   },
 });
 
+type CompositionMessage = {
+  id?: string;
+  text?: string;
+  audioPath?: string;
+  audio_path?: string;
+  audio_type?: string;
+  audioDuration?: number;
+};
+type CompositionProps = { messages?: CompositionMessage[] };
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) {
@@ -46,8 +56,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    const props = job.composition_props as any;
-    const messages: any[] = Array.isArray(props?.messages)
+    const props = job.composition_props as CompositionProps;
+    const messages: CompositionMessage[] = Array.isArray(props?.messages)
       ? [...props.messages]
       : [];
 

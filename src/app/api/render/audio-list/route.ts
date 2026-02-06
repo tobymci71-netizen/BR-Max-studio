@@ -10,6 +10,15 @@ type AudioItem = {
   audioType: string;
 };
 
+type CompositionMessage = {
+  id?: string;
+  text?: string;
+  audioPath?: string;
+  audio_path?: string;
+  audio_type?: string;
+};
+type CompositionProps = { messages?: CompositionMessage[] };
+
 export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) {
@@ -35,8 +44,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    const props = job.composition_props as any;
-    const messages: any[] = Array.isArray(props?.messages) ? props.messages : [];
+    const props = job.composition_props as CompositionProps;
+    const messages: CompositionMessage[] = Array.isArray(props?.messages)
+      ? props.messages
+      : [];
 
     const items: AudioItem[] = [];
 

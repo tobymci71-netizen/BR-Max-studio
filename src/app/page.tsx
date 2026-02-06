@@ -294,7 +294,7 @@ function DemoPageContent() {
         finalGenerateLabel="Generate video"
         finalGenerateLoading={isGenerating}
         finalGenerateDisabled={isGenerating}
-        finalGenerateNotice="Please do not close this page until the video generation is started to process."
+        finalGenerateNotice="Video will be generated in two parts: first, the audio will be generated, and then the video will be rendered. You will need to review the audio generation before the video is rendered."
         onGenerateFinal={handleGenerateFinal}
         isSubscribed={isSubscribed ?? false}
       />
