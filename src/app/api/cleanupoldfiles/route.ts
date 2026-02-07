@@ -86,7 +86,7 @@ export async function GET() {
     console.log(`🚩 Protecting ${flaggedS3Keys.size} files from flagged jobs`);
 
     // ========== CLEANUP YOUR BUCKET ==========
-    const YOUR_PREFIXES = ["renders/", "uploads/", "audios/"];
+    const YOUR_PREFIXES = ["renders/", "uploads/", "audios/", "downloads/"];
 
     for (const PREFIX of YOUR_PREFIXES) {
       console.log(`📁 Checking ${BUCKET}/${PREFIX}`);

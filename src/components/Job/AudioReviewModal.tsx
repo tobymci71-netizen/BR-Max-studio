@@ -344,10 +344,29 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         }
       `}</style>
 
+      {/* Full-width loading: one big section */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] py-12 px-6 text-sm text-white">
+          <div className="flex items-end justify-center gap-2 h-20 mb-6">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+              <div
+                key={i}
+                className="w-2.5 bg-gradient-to-t from-violet-500 to-purple-400 rounded-full waveform-bar"
+                style={{ animationDelay: `${i * 0.08}s` }}
+              />
+            ))}
+          </div>
+          <p className="text-violet-200/90 font-medium">Loading audio clips...</p>
+          <p className="text-gray-400 text-xs mt-1">Preparing your clips for review</p>
+        </div>
+      )}
+
+      {!loading && (
+      <>
       <div className="flex flex-col lg:flex-row gap-6 text-sm text-white">
         {/* Left: list of clips */}
         <div className="lg:w-2/5 w-full flex flex-col gap-4 max-h-[70vh] overflow-hidden">
-          {!loading && items.length > 0 && (
+          {items.length > 0 && (
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 backdrop-blur-sm shrink-0">
               <input
                 id="audio-autoplay-left"
@@ -363,30 +382,6 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           )}
           
           <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-violet-500/30 scrollbar-track-transparent">
-            {loading && (
-              <div className="space-y-3 p-4">
-                <div className="flex items-center justify-center py-8">
-                  <div className="flex items-end gap-1.5 h-16">
-                    {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                      <div
-                        key={i}
-                        className="w-2 bg-gradient-to-t from-violet-500 to-purple-400 rounded-full waveform-bar"
-                        style={{
-                          animationDelay: `${i * 0.1}s`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-16 rounded-xl bg-gradient-to-r from-gray-800/50 to-gray-700/50 shimmer"
-                  />
-                ))}
-              </div>
-            )}
-            
             {error && (
               <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 backdrop-blur-sm">
                 <p className="text-sm text-rose-300">{error}</p>
@@ -749,7 +744,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       </div>
 
       {/* Start Video Rendering Button */}
-      {!loading && items.length > 0 && (
+      {items.length > 0 && (
         <div className="mt-6 pt-6 border-t border-gray-700/50">
           <button
             type="button"
@@ -774,6 +769,8 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           </p>
         </div>
       )}
+      </>
+    )}
     </Modal>
   );
 }

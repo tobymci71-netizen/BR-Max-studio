@@ -893,12 +893,17 @@ const JobsList = forwardRef((_, ref) => {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
-                              if (!expired)
+                              if (!expired) {
+                                const base =
+                                  typeof window !== "undefined"
+                                    ? window.location.origin
+                                    : "";
                                 window.open(
-                                  job.s3_url as string,
+                                  `${base}/api/render/download-url?jobId=${job.id}`,
                                   "_blank",
                                   "noopener,noreferrer",
                                 );
+                              }
                             }}
                             disabled={expired}
                             className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${expired
