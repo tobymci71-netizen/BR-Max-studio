@@ -37,12 +37,10 @@ export function StudioWizard(props: IMessagesStudioProps) {
     [getStepErrors],
   );
 
-  const stepErrors = React.useMemo(() => {
-    if (currentStep >= STEPS.length - 1) {
-      return {};
-    }
-    return getStepErrors(currentStep);
-  }, [currentStep, getStepErrors]);
+  const stepErrors = React.useMemo(
+    () => getStepErrors(currentStep),
+    [currentStep, getStepErrors],
+  );
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
@@ -189,7 +187,7 @@ export function StudioWizard(props: IMessagesStudioProps) {
 
       {/* Step Content */}
       <div style={{ padding: 24, minHeight: 400 }}>
-        {Object.keys(stepErrors).length > 0 && currentStep == STEPS.length - 1 && (
+        {Object.keys(stepErrors).length > 0 && (
           <div
             style={{
               padding: 12,
