@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { parseBuffer } from "music-metadata";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 const s3 = new S3Client({
@@ -105,17 +106,32 @@ export async function POST(request: Request) {
       }),
     );
 
-    // Optionally update text, duration and audio_type in composition props if provided
-    if (
+    // Re-calculate duration from the new audio file so it's always correct (upload or regenerate)
+    let resolvedDuration: number | undefined;
+    try {
+      const meta = await parseBuffer(buffer, { mimeType });
+      if (typeof meta.format?.duration === "number" && meta.format.duration > 0) {
+        resolvedDuration = Number(meta.format.duration.toFixed(2));
+      }
+    } catch {
+      // fallback to client-provided duration if parsing fails
+      if (typeof duration === "number") resolvedDuration = duration;
+    }
+    if (resolvedDuration == null && typeof duration === "number") {
+      resolvedDuration = duration;
+    }
+
+    // Update composition props: text, duration (from new file), and audio_type
+    const hasUpdates =
       typeof updatedText === "string" ||
-      typeof duration === "number" ||
-      typeof audioType === "string"
-    ) {
+      resolvedDuration != null ||
+      typeof audioType === "string";
+    if (hasUpdates) {
       if (typeof updatedText === "string") {
         messages[idx].text = updatedText;
       }
-      if (typeof duration === "number") {
-        messages[idx].audioDuration = duration;
+      if (resolvedDuration != null) {
+        messages[idx].audioDuration = resolvedDuration;
       }
       if (typeof audioType === "string") {
         messages[idx].audio_type = audioType;
