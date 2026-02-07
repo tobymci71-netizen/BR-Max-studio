@@ -24,28 +24,51 @@ export function StudioWizard(props: IMessagesStudioProps) {
   const { generatePreview } = useStudioPreview();
   const CurrentStepComponent = STEPS[currentStep].component;
   const [askConfirmationForResetSettings, setAskConfirmationForResetSettings] = useState(false);
+  /** Steps that have been validated (user clicked Next or switched tab). Errors only show for these. */
+  const [validatedSteps, setValidatedSteps] = useState<Set<number>>(() => new Set());
 
   const stepValidation = React.useMemo(
     () =>
       STEPS.map((_, idx) => {
         const errors = getStepErrors(idx);
+        const hasBeenValidated = validatedSteps.has(idx);
         return {
-          hasErrors: Object.keys(errors).length > 0,
+          hasErrors: hasBeenValidated && Object.keys(errors).length > 0,
           errors,
         };
       }),
-    [getStepErrors],
+    [getStepErrors, validatedSteps],
   );
 
+  /** Only show errors for the current step if it has been validated (Next or tab switch). */
   const stepErrors = React.useMemo(
-    () => getStepErrors(currentStep),
-    [currentStep, getStepErrors],
+    () => (validatedSteps.has(currentStep) ? getStepErrors(currentStep) : {}),
+    [currentStep, validatedSteps, getStepErrors],
   );
+
+  const errorBannerRef = React.useRef<HTMLDivElement>(null);
+  const hasStepErrors = Object.keys(stepErrors).length > 0;
+  /** Offset so the error banner is not hidden behind a fixed/sticky nav (px). */
+  const SCROLL_TOP_OFFSET = 120;
+  React.useEffect(() => {
+    if (hasStepErrors && errorBannerRef.current) {
+      errorBannerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [hasStepErrors]);
 
   const handleNext = () => {
+    setValidatedSteps((prev) => new Set(prev).add(currentStep));
     if (validateStep(currentStep)) {
       setCurrentStep(Math.min(currentStep + 1, STEPS.length - 1));
     }
+  };
+
+  const handleStepTabClick = (idx: number) => {
+    if (idx !== currentStep) {
+      setValidatedSteps((prev) => new Set(prev).add(currentStep));
+      validateStep(currentStep);
+    }
+    setCurrentStep(idx);
   };
 
   const handleBack = () => {
@@ -60,7 +83,7 @@ export function StudioWizard(props: IMessagesStudioProps) {
           {STEPS.map((step, idx) => (
             <button
               key={step.id}
-              onClick={() => setCurrentStep(idx)}
+              onClick={() => handleStepTabClick(idx)}
               className="studio-tab-btn"
               style={{
                 flex: 1,
@@ -126,6 +149,7 @@ export function StudioWizard(props: IMessagesStudioProps) {
             <Button
               onClick={() => {
                 resetForm();
+                setValidatedSteps(new Set());
                 setAskConfirmationForResetSettings(false);
               }}
               style={{
@@ -187,8 +211,9 @@ export function StudioWizard(props: IMessagesStudioProps) {
 
       {/* Step Content */}
       <div style={{ padding: 24, minHeight: 400 }}>
-        {Object.keys(stepErrors).length > 0 && (
+        {hasStepErrors && (
           <div
+            ref={errorBannerRef}
             style={{
               padding: 12,
               marginBottom: 20,
@@ -197,6 +222,7 @@ export function StudioWizard(props: IMessagesStudioProps) {
               borderRadius: 8,
               fontSize: 13,
               color: "#ff8080",
+              scrollMarginTop: SCROLL_TOP_OFFSET,
             }}
           >
             {Object.values(stepErrors)[0]}
