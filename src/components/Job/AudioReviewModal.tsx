@@ -26,6 +26,8 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Which clip is currently playing (can differ from selected when auto-play advances). */
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -79,6 +81,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setLoading(true);
     setError(null);
     setSelectedId(null);
+    setPlayingId(null);
     setEditText("");
 
     fetch(`/api/render/audio-list?jobId=${jobId}`)
@@ -88,7 +91,9 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         const list = Array.isArray(data.items) ? (data.items as AudioReviewItem[]) : [];
         setItems(list);
         if (list.length > 0) {
-          setSelectedId(list[0].id);
+          const firstId = list[0].id;
+          setSelectedId(firstId);
+          setPlayingId(firstId);
           setEditText(list[0].text ?? "");
         }
       })
@@ -110,6 +115,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const handleClose = () => {
     setItems([]);
     setSelectedId(null);
+    setPlayingId(null);
     setError(null);
     setAutoPlay(false);
     setEditText("");
@@ -130,17 +136,19 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
 
   const handleAudioEnded = () => {
     setIsPlaying(false);
-    if (!autoPlay || !selectedId) return;
-    const idx = items.findIndex((i) => i.id === selectedId);
+    if (!autoPlay || !playingId) return;
+    const idx = items.findIndex((i) => i.id === playingId);
     if (idx === -1) return;
     const next = items[idx + 1];
-    if (next) setSelectedId(next.id);
+    if (next) setPlayingId(next.id);
   };
 
+  // When auto-play is on, play playingId; otherwise play selectedId (selection drives playback)
+  const effectivePlayingId = autoPlay ? playingId : selectedId;
   useEffect(() => {
-    if (!autoPlay || !selectedId || !audioRef.current) return;
+    if (!effectivePlayingId || !audioRef.current) return;
     audioRef.current.play().catch(() => {});
-  }, [selectedId, autoPlay]);
+  }, [effectivePlayingId, autoPlay]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -156,7 +164,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
     };
-  }, [selectedId]);
+  }, [effectivePlayingId]);
 
   const handleRegenerateAudio = async () => {
     if (
@@ -401,6 +409,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
             
             {items.map((item) => {
               const isSelected = item.id === selectedId;
+              const isPlaying = item.id === playingId;
               const preview =
                 item.text && item.text.length > 50
                   ? `${item.text.slice(0, 50)}...`
@@ -411,6 +420,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                   type="button"
                   onClick={() => {
                     setSelectedId(item.id);
+                    setPlayingId(item.id);
                     setEditText(item.text ?? "");
                     setShowRegenerateOptions(false);
                   }}
@@ -434,7 +444,13 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                       }`}>
                         {preview}
                       </p>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {isPlaying && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            Playing
+                          </span>
+                        )}
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${
                             item.audioType === "re-generated"
@@ -473,9 +489,12 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           )}
           
           {selectedId && (() => {
-            const item = items.find((i) => i.id === selectedId) || items[0];
-            if (!item) return null;
-            
+            const selectedItem = items.find((i) => i.id === selectedId) || items[0];
+            const playingItem = effectivePlayingId ? items.find((i) => i.id === effectivePlayingId) : null;
+            const audioSrc = (playingItem || selectedItem)?.url;
+            const isViewingDifferentFromPlaying = autoPlay && selectedId !== playingId && playingId != null;
+            if (!selectedItem) return null;
+
             return (
               <div className="space-y-4">
                 {!showRegenerateOptions ? (
@@ -701,6 +720,20 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                   />
                 </div>
 
+                {isViewingDifferentFromPlaying && playingItem && (
+                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm">
+                    <span className="inline-flex w-2 h-2 rounded-full bg-amber-400 animate-pulse" aria-hidden />
+                    <span>Now playing: clip #{playingItem.index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedId(playingItem.id); setEditText(playingItem.text ?? ""); setPlayingId(playingItem.id); }}
+                      className="ml-auto text-amber-300 hover:text-amber-100 font-medium underline"
+                    >
+                      View this clip
+                    </button>
+                  </div>
+                )}
+
                 <div className="relative rounded-xl overflow-hidden border border-gray-700/50 bg-gradient-to-br from-gray-800/30 to-gray-900/30 backdrop-blur-sm">
                   {audioLoading && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/95 z-10 min-h-[120px]">
@@ -728,7 +761,8 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                   <audio
                     ref={audioRef}
                     controls
-                    src={item.url}
+                    src={audioSrc}
+                    key={effectivePlayingId ?? "none"}
                     className="w-full relative bg-transparent"
                     onLoadStart={() => setAudioLoading(true)}
                     onCanPlay={() => setAudioLoading(false)}
