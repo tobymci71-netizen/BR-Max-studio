@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     // Re-calculate duration from the new audio file so it's always correct (upload or regenerate)
     let resolvedDuration: number | undefined;
     try {
-      const meta = await parseBuffer(buffer, { mimeType });
+      const meta = await parseBuffer(new Uint8Array(buffer), { mimeType });
       if (typeof meta.format?.duration === "number" && meta.format.duration > 0) {
         resolvedDuration = Number(meta.format.duration.toFixed(2));
       }
