@@ -34,7 +34,7 @@ export function RizzMonetizationSettings({
     config.intro_message_voice_id ?? "",
   );
 
-  // Sync drafts when config changes externally
+  // Sync drafts when config changes externally (e.g. load / reset)
   React.useEffect(() => {
     setIntroMessageDraft(config.intro_message ?? "");
   }, [config.intro_message]);
@@ -58,14 +58,9 @@ export function RizzMonetizationSettings({
     onChange({ [field]: value });
   };
 
-  // Immediate update helper that ensures changes are applied right away
-  const immediateUpdate = (field: keyof MonetizationSettings["rizz_config"], value: string) => {
-    updateField(field, value);
-  };
-
   const hasImage = Boolean(config.image?.trim());
-  const hasIntroMessage = Boolean(config.intro_message?.trim());
-  const hasReply = Boolean(config.reply?.trim());
+  const hasIntroMessage = Boolean(introMessageDraft.trim());
+  const hasReply = Boolean(replyVisualDraft.trim());
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -197,10 +192,11 @@ export function RizzMonetizationSettings({
         <textarea
           rows={3}
           value={introMessageDraft}
-          onChange={(event) => {
-            const newValue = event.target.value;
-            setIntroMessageDraft(newValue);
-            immediateUpdate("intro_message", newValue);
+          onChange={(e) => setIntroMessageDraft(e.target.value)}
+          onBlur={() => {
+            if (introMessageDraft !== (config.intro_message ?? "")) {
+              onChange({ intro_message: introMessageDraft });
+            }
           }}
           disabled={disabled}
           placeholder="Rizz app tells me to reply with..."
@@ -237,16 +233,19 @@ export function RizzMonetizationSettings({
         <textarea
           rows={3}
           value={replyVisualDraft}
-          onChange={(event) => {
-            const newValue = event.target.value;
+          onChange={(e) => {
+            const newValue = e.target.value;
             setReplyVisualDraft(newValue);
-            if (!showAudioField) {
-              setReplyDraft(newValue);
-            }
-            // Update parent immediately
-            immediateUpdate("reply_visual", newValue);
-            if (!showAudioField) {
-              immediateUpdate("reply", newValue);
+            if (!showAudioField) setReplyDraft(newValue);
+          }}
+          onBlur={() => {
+            const visualChanged = replyVisualDraft !== (config.reply_visual ?? "");
+            const replyChanged = !showAudioField && replyVisualDraft !== (config.reply ?? "");
+            if (visualChanged || replyChanged) {
+              onChange({
+                reply_visual: replyVisualDraft,
+                ...(!showAudioField ? { reply: replyVisualDraft } : {}),
+              });
             }
           }}
           disabled={disabled}
@@ -304,10 +303,11 @@ export function RizzMonetizationSettings({
           <textarea
             rows={3}
             value={replyDraft}
-            onChange={(event) => {
-              const newValue = event.target.value;
-              setReplyDraft(newValue);
-              immediateUpdate("reply", newValue);
+            onChange={(e) => setReplyDraft(e.target.value)}
+            onBlur={() => {
+              if (replyDraft !== (config.reply ?? "")) {
+                onChange({ reply: replyDraft });
+              }
             }}
             disabled={disabled}
             placeholder="Leave empty to use the text above, or type custom audio script here..."
@@ -361,10 +361,11 @@ export function RizzMonetizationSettings({
         <input
           type="text"
           value={voiceIdDraft}
-          onChange={(event) => {
-            const newValue = event.target.value;
-            setVoiceIdDraft(newValue);
-            immediateUpdate("intro_message_voice_id", newValue);
+          onChange={(e) => setVoiceIdDraft(e.target.value)}
+          onBlur={() => {
+            if (voiceIdDraft !== (config.intro_message_voice_id ?? "")) {
+              onChange({ intro_message_voice_id: voiceIdDraft });
+            }
           }}
           disabled={disabled}
           placeholder="Leave empty to use 'Me' voice from Text to Speech tab"
