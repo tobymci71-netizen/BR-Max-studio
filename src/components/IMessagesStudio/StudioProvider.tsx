@@ -7,7 +7,7 @@ import {
   useRef,
   useMemo,
 } from "react";
-import { defaultMyCompProps } from "@/types/constants";
+import { defaultMyCompProps, RIZZ_MONETIZATION_CATEGORY } from "@/types/constants";
 import type { CompositionPropsType } from "@/types/constants";
 import { usePreviewBuilder } from "./hooks/usePreviewBuilder";
 import type { MonetizationPreviewContext } from "@/helpers/previewBuilder";
@@ -362,22 +362,44 @@ export function StudioProvider({ children, isSubscribed = false }: StudioProvide
 
         case 1: // Monetization Step
           if (formValues.monetization?.enabled) {
-            if (!formValues.monetization?.messages.length) {
-              newErrors.monetization = "Add at least one monetization message";
+            const mon = formValues.monetization;
+            const isRizz = mon.category === RIZZ_MONETIZATION_CATEGORY;
+            const rizz = mon.rizz_config;
+
+            if (isRizz) {
+              // Rizz: image, intro, reply, and voice id required
+              if (!rizz?.image?.trim()) {
+                newErrors.monetizationRizzImage = "Upload an image for Rizz";
+              }
+              if (!rizz?.intro_message?.trim()) {
+                newErrors.monetizationRizzIntro = "Intro message is required for Rizz";
+              }
+              if (!rizz?.reply_visual?.trim() && !rizz?.reply?.trim()) {
+                newErrors.monetizationRizzReply = "Rizz reply is required";
+              }
+              if (!mon.meVoiceId?.trim()) {
+                newErrors.monetizationMeVoiceId =
+                  "Add a voice ID for the intro (or use \"Me\" voice from Text to Speech tab)";
+              }
+            } else {
+              // Cantina: messages, campaign, start message, me voice
+              if (!mon.messages?.length) {
+                newErrors.monetization = "Add at least one monetization message";
+              }
+              if (!mon.campaign) {
+                newErrors.monetizationCampaign = "Select a campaign";
+              }
+              if (!mon.startMessage) {
+                newErrors.monetizationStartMessage =
+                  "Enter a starting message for the handoff";
+              }
+              if (!mon.meVoiceId?.trim()) {
+                newErrors.monetizationMeVoiceId =
+                  "Add a voice ID for the \"me\" speaker in monetization";
+              }
             }
-            if (!formValues.monetization?.category) {
+            if (!mon.category) {
               newErrors.monetizationCategory = "Choose a monetization category";
-            }
-            if (!formValues.monetization?.campaign) {
-              newErrors.monetizationCampaign = "Select a campaign";
-            }
-            if (!formValues.monetization?.startMessage) {
-              newErrors.monetizationStartMessage =
-                "Enter a starting message for the handoff";
-            }
-            if (!formValues.monetization?.meVoiceId?.trim()) {
-              newErrors.monetizationMeVoiceId =
-                "Add a voice ID for the \"me\" speaker in monetization";
             }
           }
           break;
