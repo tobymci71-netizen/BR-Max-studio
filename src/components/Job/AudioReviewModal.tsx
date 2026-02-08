@@ -46,6 +46,8 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
   const [startingVideo, setStartingVideo] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Cache-bust playback after replace/regenerate so the new file is loaded (same URL, new content)
+  const [urlVersion, setUrlVersion] = useState<Record<string, number>>({});
 
   // Load saved ElevenLabs settings from studio localStorage
   useEffect(() => {
@@ -147,6 +149,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setShowRegenerateOptions(false);
     setStartingVideo(false);
     setSearchQuery("");
+    setUrlVersion({});
     onClose();
   };
 
@@ -235,6 +238,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
             : item,
         ),
       );
+      setUrlVersion((prev) => ({ ...prev, [selectedId]: Date.now() }));
 
       if (audioRef.current) audioRef.current.load();
     } catch (err) {
@@ -243,6 +247,23 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     } finally {
       setRegenerating(false);
     }
+  };
+
+  const getAudioDurationFromFile = (f: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(f);
+      const a = new Audio();
+      a.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        const d = a.duration;
+        resolve(Number.isFinite(d) && d > 0 ? d : 0);
+      };
+      a.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to load audio"));
+      };
+      a.src = url;
+    });
   };
 
   const handleReplaceAudio = async (file: File | null) => {
@@ -265,6 +286,13 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         reader.readAsDataURL(file);
       });
 
+      let duration: number | undefined;
+      try {
+        duration = await getAudioDurationFromFile(file);
+      } catch {
+        duration = undefined;
+      }
+
       const res = await fetch("/api/render/replace-audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,6 +302,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           base64Data: base64,
           mimeType: file.type || "audio/mpeg",
           audioType: "replaced",
+          ...(typeof duration === "number" && duration > 0 && { duration }),
         }),
       });
 
@@ -287,6 +316,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
             : item,
         ),
       );
+      setUrlVersion((prev) => ({ ...prev, [selectedId]: Date.now() }));
 
       if (audioRef.current) audioRef.current.load();
     } catch (err) {
@@ -474,7 +504,11 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
             ) : selectedId && (() => {
               const selectedItem = items.find((i) => i.id === selectedId) || items[0];
               const playingItem = effectivePlayingId ? items.find((i) => i.id === effectivePlayingId) : null;
-              const audioSrc = (playingItem || selectedItem)?.url;
+              const item = playingItem || selectedItem;
+              const baseUrl = item?.url;
+              const audioSrc = baseUrl
+                ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}v=${urlVersion[item.id] ?? 0}`
+                : undefined;
               if (!selectedItem) return null;
 
               return (

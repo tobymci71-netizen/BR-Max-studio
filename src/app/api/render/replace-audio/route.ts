@@ -106,19 +106,21 @@ export async function POST(request: Request) {
       }),
     );
 
-    // Re-calculate duration from the new audio file so it's always correct (upload or regenerate)
+    // Re-calculate duration from the new audio file so it's always correct (upload or regenerate).
+    // Use server-parsed duration when available; otherwise use client-provided duration so
+    // composition_props.audioDuration is always updated for correct playback/video length.
     let resolvedDuration: number | undefined;
     try {
       const meta = await parseBuffer(new Uint8Array(buffer), { mimeType });
       if (typeof meta.format?.duration === "number" && meta.format.duration > 0) {
-        resolvedDuration = Number(meta.format.duration.toFixed(2));
+        resolvedDuration = Number(Number(meta.format.duration).toFixed(3));
       }
     } catch {
       // fallback to client-provided duration if parsing fails
-      if (typeof duration === "number") resolvedDuration = duration;
+      if (typeof duration === "number" && duration > 0) resolvedDuration = duration;
     }
-    if (resolvedDuration == null && typeof duration === "number") {
-      resolvedDuration = duration;
+    if (resolvedDuration == null && typeof duration === "number" && duration > 0) {
+      resolvedDuration = Number(Number(duration).toFixed(3));
     }
 
     // Update composition props: text, duration (from new file), and audio_type
