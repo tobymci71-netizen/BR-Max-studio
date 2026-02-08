@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Zap, Upload, Play, Video } from "lucide-react";
+import { Loader2, Upload, Video, Play, Pause, Search, X } from "lucide-react";
 import { Modal } from "../Modal";
 import { generateAudioFile } from "@/helpers/audioGeneration";
 import { DEFAULT_VOICE_SETTINGS } from "@/types/constants";
@@ -26,7 +26,6 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  /** Which clip is currently playing (can differ from selected when auto-play advances). */
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
@@ -46,6 +45,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
   const [startingVideo, setStartingVideo] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Load saved ElevenLabs settings from studio localStorage
   useEffect(() => {
@@ -58,7 +58,6 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         setApiKey(parsed.elevenLabsApiKey);
       }
       if (Array.isArray(parsed.voices) && parsed.voices.length > 0) {
-        // Use the first voice with a voiceId
         const voiceWithId = parsed.voices.find((v: { voiceId?: string }) => v.voiceId);
         if (voiceWithId?.voiceId) {
           setVoiceId(voiceWithId.voiceId);
@@ -68,9 +67,8 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       console.error("Failed to load saved ElevenLabs settings:", error);
     }
   }, [open]);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
 
+  const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Load audio list when modal opens with a job
@@ -95,6 +93,23 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           setSelectedId(firstId);
           setPlayingId(firstId);
           setEditText(list[0].text ?? "");
+        }
+        // Apply job composition voice settings (used at generation time) as defaults
+        const vs = data.voiceSettings;
+        if (vs && typeof vs === "object") {
+          if (typeof vs.speed === "number") setSpeed(vs.speed);
+          if (typeof vs.stability === "number") setStability(vs.stability);
+          if (typeof vs.similarity_boost === "number")
+            setSimilarity(vs.similarity_boost);
+          if (typeof vs.style === "number") setStyle(vs.style);
+          if (typeof vs.use_speaker_boost === "boolean")
+            setSpeakerBoost(vs.use_speaker_boost);
+        }
+        if (typeof data.enableSilenceTrimming === "boolean") {
+          setVoiceStyle(data.enableSilenceTrimming ? "snappy" : "natural");
+        }
+        if (typeof data.voiceId === "string" && data.voiceId.trim()) {
+          setVoiceId(data.voiceId.trim());
         }
       })
       .catch((err) => {
@@ -131,6 +146,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setReplacingId(null);
     setShowRegenerateOptions(false);
     setStartingVideo(false);
+    setSearchQuery("");
     onClose();
   };
 
@@ -143,7 +159,6 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     if (next) setPlayingId(next.id);
   };
 
-  // When auto-play is on, play playingId; otherwise play selectedId (selection drives playback)
   const effectivePlayingId = autoPlay ? playingId : selectedId;
   useEffect(() => {
     if (!effectivePlayingId || !audioRef.current) return;
@@ -298,7 +313,6 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || "Failed to start video rendering");
 
-      // Close the modal after successfully starting video rendering
       handleClose();
     } catch (err) {
       console.error("Error starting video rendering:", err);
@@ -308,503 +322,432 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     }
   };
 
-  return (
-    <Modal open={open} onClose={handleClose} title="Review Audio" width={900}>
-      <style jsx>{`
-        @keyframes waveform {
-          0%, 100% { height: 20%; }
-          50% { height: 100%; }
-        }
-        @keyframes pulse-ring {
-          0% {
-            transform: scale(0.95);
-            opacity: 0.7;
-          }
-          50% {
-            transform: scale(1.05);
-            opacity: 0.3;
-          }
-          100% {
-            transform: scale(0.95);
-            opacity: 0.7;
-          }
-        }
-        @keyframes shimmer {
-          0% {
-            background-position: -1000px 0;
-          }
-          100% {
-            background-position: 1000px 0;
-          }
-        }
-        .waveform-bar {
-          animation: waveform 1.2s ease-in-out infinite;
-        }
-        .shimmer {
-          background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.1) 50%,
-            rgba(255, 255, 255, 0) 100%
-          );
-          background-size: 1000px 100%;
-          animation: shimmer 2s infinite;
-        }
-      `}</style>
+  // Filter items based on search query
+  const filteredItems = items.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      item.text?.toLowerCase().includes(query) ||
+      `#${item.index + 1}`.includes(query)
+    );
+  });
 
-      {/* Full-width loading: one big section */}
+  return (
+    <Modal open={open} onClose={handleClose} title="Review Audio Clips" width={1200}>
       {loading && (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] py-12 px-6 text-sm text-white">
-          <div className="flex items-end justify-center gap-2 h-20 mb-6">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-              <div
-                key={i}
-                className="w-2.5 bg-gradient-to-t from-violet-500 to-purple-400 rounded-full waveform-bar"
-                style={{ animationDelay: `${i * 0.08}s` }}
-              />
-            ))}
-          </div>
-          <p className="text-violet-200/90 font-medium">Loading audio clips...</p>
-          <p className="text-gray-400 text-xs mt-1">Preparing your clips for review</p>
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin mb-3" />
+          <p className="text-sm text-gray-400">Loading audio clips...</p>
         </div>
       )}
 
       {!loading && (
-      <>
-      <div className="flex flex-col lg:flex-row gap-6 text-sm text-white">
-        {/* Left: list of clips */}
-        <div className="lg:w-2/5 w-full flex flex-col gap-4 max-h-[70vh] overflow-hidden">
-          {items.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 backdrop-blur-sm shrink-0">
-              <input
-                id="audio-autoplay-left"
-                type="checkbox"
-                checked={autoPlay}
-                onChange={(e) => setAutoPlay(e.target.checked)}
-                className="h-4 w-4 rounded border-violet-400/50 bg-gray-900/80 text-violet-500 focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-0 cursor-pointer transition-all"
-              />
-              <label htmlFor="audio-autoplay-left" className="cursor-pointer text-sm font-medium text-violet-200 select-none">
-                Auto-play next clip
-              </label>
-            </div>
-          )}
-          
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-violet-500/30 scrollbar-track-transparent">
-            {error && (
-              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 backdrop-blur-sm">
-                <p className="text-sm text-rose-300">{error}</p>
+        <div className="flex gap-6 h-[calc(100vh-200px)] min-h-[600px]">
+          {/* Left Panel - Audio List */}
+          <div className="w-80 flex flex-col border-r border-white/10">
+            {/* Search Bar */}
+            <div className="p-4 border-b border-white/10">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Search clips..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2 text-sm bg-white/5 border border-white/15 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            )}
-            
-            {!loading && !error && items.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center mb-4">
-                  <Play className="w-8 h-8 text-gray-400" />
+              <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+                <span>{filteredItems.length} of {items.length} clips</span>
+                <label className="flex items-center gap-2 cursor-pointer text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={autoPlay}
+                    onChange={(e) => setAutoPlay(e.target.checked)}
+                    className="w-4 h-4 text-blue-500 border-white/20 rounded focus:ring-2 focus:ring-blue-500/50 bg-white/5"
+                  />
+                  <span>Auto-play</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Clip List */}
+            <div className="flex-1 overflow-y-auto">
+              {error && (
+                <div className="m-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-300">
+                  {error}
                 </div>
-                <p className="text-gray-400 text-sm">
-                  No audio clips found for this job.
-                </p>
-              </div>
-            )}
-            
-            {items.map((item) => {
-              const isSelected = item.id === selectedId;
-              const isPlaying = item.id === playingId;
-              const preview =
-                item.text && item.text.length > 50
-                  ? `${item.text.slice(0, 50)}...`
-                  : item.text || "(No text)";
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(item.id);
-                    setPlayingId(item.id);
-                    setEditText(item.text ?? "");
-                    setShowRegenerateOptions(false);
-                  }}
-                  className={`group w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 ${
-                    isSelected
-                      ? "border-violet-500/60 bg-gradient-to-br from-violet-500/20 to-purple-500/20 shadow-lg shadow-violet-500/20 scale-[1.02]"
-                      : "border-gray-700/50 bg-gray-800/30 hover:bg-gray-800/50 hover:border-gray-600/50 hover:scale-[1.01]"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-colors ${
-                      isSelected
-                        ? "bg-violet-500/30 text-violet-200"
-                        : "bg-gray-700/50 text-gray-400 group-hover:bg-gray-700/70"
-                    }`}>
-                      #{item.index + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm line-clamp-2 transition-colors ${
-                        isSelected ? "text-white font-medium" : "text-gray-300 group-hover:text-gray-200"
-                      }`}>
-                        {preview}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        {isPlaying && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            Playing
-                          </span>
-                        )}
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${
-                            item.audioType === "re-generated"
-                              ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
-                              : item.audioType === "replaced"
-                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                          }`}
-                        >
-                          {item.audioType === "re-generated"
-                            ? "Re-generated"
-                            : item.audioType === "replaced"
-                              ? "Replaced"
-                              : "Original"}
-                        </span>
-                      </div>
-                    </div>
+              )}
+
+              {filteredItems.length === 0 && !error && (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
+                    <Search className="w-6 h-6 text-gray-500" />
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  <p className="text-sm text-gray-400">
+                    {searchQuery ? "No clips found" : "No audio clips available"}
+                  </p>
+                </div>
+              )}
 
-        {/* Right: selected clip details */}
-        <div className="lg:w-3/5 w-full space-y-4">
-          {!selectedId && items.length > 0 && (
-            <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-xl border border-gray-700/50 bg-gray-800/20">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center mb-4 border border-violet-500/30">
-                <Play className="w-10 h-10 text-violet-400" />
-              </div>
-              <p className="text-gray-300 text-sm">
-                Select an audio clip to preview and edit
-              </p>
-            </div>
-          )}
-          
-          {selectedId && (() => {
-            const selectedItem = items.find((i) => i.id === selectedId) || items[0];
-            const playingItem = effectivePlayingId ? items.find((i) => i.id === effectivePlayingId) : null;
-            const audioSrc = (playingItem || selectedItem)?.url;
-            const isViewingDifferentFromPlaying = autoPlay && selectedId !== playingId && playingId != null;
-            if (!selectedItem) return null;
+              <div className="p-2">
+                {filteredItems.map((item) => {
+                  const isSelected = item.id === selectedId;
+                  const isCurrentlyPlaying = item.id === playingId;
+                  const preview =
+                    item.text && item.text.length > 60
+                      ? `${item.text.slice(0, 60)}...`
+                      : item.text || "(No text)";
 
-            return (
-              <div className="space-y-4">
-                {!showRegenerateOptions ? (
-                  <div className="rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 to-purple-500/10 p-6 backdrop-blur-sm">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Zap className="w-6 h-6 text-white" />
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        setPlayingId(item.id);
+                        setEditText(item.text ?? "");
+                        setShowRegenerateOptions(false);
+                      }}
+                      className={`w-full text-left p-3 mb-1 rounded-lg transition-colors border ${
+                        isSelected
+                          ? "bg-blue-500/20 border-blue-500/40"
+                          : "border-transparent hover:bg-white/5"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`shrink-0 w-8 h-8 rounded flex items-center justify-center text-xs font-semibold ${
+                          isSelected ? "bg-blue-500 text-white" : "bg-white/15 text-gray-300"
+                        }`}>
+                          {isCurrentlyPlaying ? (
+                            <Play className="w-4 h-4" />
+                          ) : (
+                            `${item.index + 1}`
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-200 line-clamp-2 mb-1">
+                            {preview}
+                          </p>
+                          <span
+                            className={`inline-block px-2 py-0.5 text-xs rounded ${
+                              item.audioType === "re-generated"
+                                ? "bg-purple-500/20 text-purple-300"
+                                : item.audioType === "replaced"
+                                  ? "bg-amber-500/20 text-amber-300"
+                                  : "bg-emerald-500/20 text-emerald-300"
+                            }`}
+                          >
+                            {item.audioType === "re-generated"
+                              ? "Regenerated"
+                              : item.audioType === "replaced"
+                                ? "Replaced"
+                                : "Original"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-base font-semibold text-white mb-2">
-                          Regenerate with Custom Settings
-                        </h3>
-                        <p className="text-sm text-gray-300 mb-4">
-                          Fine-tune the voice parameters and regenerate this audio clip with ElevenLabs
-                        </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Details */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {!selectedId && items.length > 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Play className="w-8 h-8 text-gray-500" />
+                  </div>
+                  <p className="text-gray-400">Select a clip to preview and edit</p>
+                </div>
+              </div>
+            ) : selectedId && (() => {
+              const selectedItem = items.find((i) => i.id === selectedId) || items[0];
+              const playingItem = effectivePlayingId ? items.find((i) => i.id === effectivePlayingId) : null;
+              const audioSrc = (playingItem || selectedItem)?.url;
+              if (!selectedItem) return null;
+
+              return (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Audio Player */}
+                  <div className="p-6 border-b border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-white">
+                        Clip #{selectedItem.index + 1}
+                      </h3>
+                      <div className="flex items-center gap-2">
                         <button
-                          type="button"
-                          onClick={() => setShowRegenerateOptions(true)}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:from-violet-500 hover:to-purple-500 transition-all duration-200 transform hover:scale-105"
+                          onClick={() => audioRef.current?.paused ? audioRef.current?.play() : audioRef.current?.pause()}
+                          className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-300 hover:text-white"
                         >
-                          <Zap className="w-4 h-4" />
-                          Show Settings
+                          {isPlaying ? (
+                            <Pause className="w-5 h-5" />
+                          ) : (
+                            <Play className="w-5 h-5" />
+                          )}
                         </button>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4 rounded-xl border border-gray-700/50 bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-base font-semibold text-white">Regeneration Settings</h3>
-                      <button
-                        type="button"
-                        onClick={() => setShowRegenerateOptions(false)}
-                        className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
-                      >
-                        Hide settings
-                      </button>
-                    </div>
                     
+                    <audio
+                      ref={audioRef}
+                      controls
+                      src={audioSrc}
+                      key={effectivePlayingId ?? "none"}
+                      className="w-full"
+                      onEnded={handleAudioEnded}
+                    />
+                  </div>
+
+                  {/* Content Area */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Text Editor */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-2">
-                        Audio Content
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Audio Text
                       </label>
                       <textarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
-                        rows={3}
-                        className="w-full px-3 py-2.5 rounded-lg border border-gray-600/50 bg-gray-900/60 text-sm text-gray-100 resize-vertical focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
-                        placeholder="Enter the text to generate audio from..."
+                        rows={4}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 resize-none"
+                        placeholder="Enter the text for this audio clip..."
                       />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="flex items-center justify-between text-xs font-medium text-gray-400">
-                          <span>Speed</span>
-                          <span className="text-violet-400 font-semibold">{speed.toFixed(2)}x</span>
-                        </label>
-                        <input
-                          type="range"
-                          min={0.7}
-                          max={1.5}
-                          step={0.05}
-                          value={speed}
-                          onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="flex items-center justify-between text-xs font-medium text-gray-400">
-                          <span>Stability</span>
-                          <span className="text-violet-400 font-semibold">{stability.toFixed(2)}</span>
-                        </label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={stability}
-                          onChange={(e) => setStability(parseFloat(e.target.value))}
-                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="flex items-center justify-between text-xs font-medium text-gray-400">
-                          <span>Similarity</span>
-                          <span className="text-violet-400 font-semibold">{similarity.toFixed(2)}</span>
-                        </label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={similarity}
-                          onChange={(e) => setSimilarity(parseFloat(e.target.value))}
-                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="flex items-center justify-between text-xs font-medium text-gray-400">
-                          <span>Style</span>
-                          <span className="text-violet-400 font-semibold">{style.toFixed(2)}</span>
-                        </label>
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.05}
-                          value={style}
-                          onChange={(e) => setStyle(parseFloat(e.target.value))}
-                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-500"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900/60 border border-gray-700/50">
-                      <input
-                        id="audio-speaker-boost"
-                        type="checkbox"
-                        checked={speakerBoost}
-                        onChange={(e) => setSpeakerBoost(e.target.checked)}
-                        className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-violet-500 focus:ring-2 focus:ring-violet-500/50 cursor-pointer"
-                      />
-                      <label htmlFor="audio-speaker-boost" className="text-sm text-gray-300 cursor-pointer select-none">
-                        Use speaker boost
-                      </label>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="block text-xs font-medium text-gray-400">
-                          ElevenLabs API Key
-                        </label>
-                        <input
-                          type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          className="w-full px-3 py-2.5 rounded-lg border border-gray-600/50 bg-gray-900/60 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
-                          placeholder="sk-..."
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="block text-xs font-medium text-gray-400">
-                          Voice ID
-                        </label>
-                        <input
-                          type="text"
-                          value={voiceId}
-                          onChange={(e) => setVoiceId(e.target.value)}
-                          className="w-full px-3 py-2.5 rounded-lg border border-gray-600/50 bg-gray-900/60 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
-                          placeholder="voice-id..."
-                        />
-                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-xs font-medium text-gray-400">
-                        Voice Style
-                      </label>
-                      <select
-                        value={voiceStyle}
-                        onChange={(e) => setVoiceStyle(e.target.value as "natural" | "snappy")}
-                        className="w-full px-3 py-2.5 rounded-lg border border-gray-600/50 bg-gray-900/60 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all cursor-pointer"
+                    {/* Regenerate Section */}
+                    {!showRegenerateOptions ? (
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/25 rounded-lg">
+                        <h4 className="text-sm font-semibold text-white mb-2">
+                          Regenerate Audio
+                        </h4>
+                        <p className="text-sm text-gray-400 mb-3">
+                          Customize voice settings and regenerate this clip with ElevenLabs
+                        </p>
+                        <button
+                          onClick={() => setShowRegenerateOptions(true)}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition-colors"
+                        >
+                          Show Settings
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 p-4 border border-white/10 rounded-lg bg-white/5">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold text-white">
+                            Voice Settings
+                          </h4>
+                          <button
+                            onClick={() => setShowRegenerateOptions(false)}
+                            className="text-sm text-gray-400 hover:text-white"
+                          >
+                            Hide
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="flex items-center justify-between text-xs font-medium text-gray-400 mb-2">
+                              <span>Speed</span>
+                              <span className="text-blue-400">{speed.toFixed(2)}x</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={0.7}
+                              max={1.5}
+                              step={0.05}
+                              value={speed}
+                              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                              className="w-full accent-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="flex items-center justify-between text-xs font-medium text-gray-400 mb-2">
+                              <span>Stability</span>
+                              <span className="text-blue-400">{stability.toFixed(2)}</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={stability}
+                              onChange={(e) => setStability(parseFloat(e.target.value))}
+                              className="w-full accent-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="flex items-center justify-between text-xs font-medium text-gray-400 mb-2">
+                              <span>Similarity</span>
+                              <span className="text-blue-400">{similarity.toFixed(2)}</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={similarity}
+                              onChange={(e) => setSimilarity(parseFloat(e.target.value))}
+                              className="w-full accent-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="flex items-center justify-between text-xs font-medium text-gray-400 mb-2">
+                              <span>Style</span>
+                              <span className="text-blue-400">{style.toFixed(2)}</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={style}
+                              onChange={(e) => setStyle(parseFloat(e.target.value))}
+                              className="w-full accent-blue-500"
+                            />
+                          </div>
+                        </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-gray-400">
+                          <input
+                            type="checkbox"
+                            checked={speakerBoost}
+                            onChange={(e) => setSpeakerBoost(e.target.checked)}
+                            className="w-4 h-4 text-blue-500 border-white/20 rounded focus:ring-2 focus:ring-blue-500/50 bg-white/5"
+                          />
+                          <span className="text-sm">Use speaker boost</span>
+                        </label>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-2">
+                              API Key
+                            </label>
+                            <input
+                              type="password"
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              className="w-full px-3 py-2 text-sm bg-white/5 border border-white/15 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                              placeholder="sk-..."
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-2">
+                              Voice ID
+                            </label>
+                            <input
+                              type="text"
+                              value={voiceId}
+                              onChange={(e) => setVoiceId(e.target.value)}
+                              className="w-full px-3 py-2 text-sm bg-white/5 border border-white/15 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                              placeholder="voice-id..."
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-400 mb-2">
+                            Voice Style
+                          </label>
+                          <select
+                            value={voiceStyle}
+                            onChange={(e) => setVoiceStyle(e.target.value as "natural" | "snappy")}
+                            className="w-full px-3 py-2 text-sm bg-white/5 border border-white/15 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                          >
+                            <option value="natural">Natural</option>
+                            <option value="snappy">Snappy (trims silence)</option>
+                          </select>
+                        </div>
+
+                        <button
+                          onClick={handleRegenerateAudio}
+                          disabled={regenerating}
+                          className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                        >
+                          {regenerating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Regenerating...
+                            </>
+                          ) : (
+                            "Regenerate Audio"
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Replace Audio */}
+                    <div>
+                      <label
+                        htmlFor="audio-replace-input"
+                        className="inline-flex items-center gap-2 px-4 py-2 border border-white/15 text-sm font-medium text-gray-300 rounded-lg hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
                       >
-                        <option value="natural">Natural</option>
-                        <option value="snappy">Snappy (trims silence)</option>
-                      </select>
+                        {replacingId === selectedId ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Replacing...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            Replace with File
+                          </>
+                        )}
+                      </label>
+                      <input
+                        id="audio-replace-input"
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        disabled={replacingId === selectedId}
+                        onChange={(e) => handleReplaceAudio(e.target.files?.[0] ?? null)}
+                      />
                     </div>
+                  </div>
 
+                  {/* Footer Actions */}
+                  <div className="p-6 border-t border-white/10 bg-white/5">
                     <button
-                      type="button"
-                      onClick={handleRegenerateAudio}
-                      disabled={regenerating}
-                      className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white text-sm font-semibold shadow-lg hover:shadow-xl hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] disabled:transform-none"
+                      onClick={handleStartVideoRendering}
+                      disabled={startingVideo}
+                      className="w-full py-3 bg-emerald-600 text-white text-base font-semibold rounded-lg hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
-                      {regenerating ? (
+                      {startingVideo ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          Regenerating Audio...
+                          Starting Video Rendering...
                         </>
                       ) : (
                         <>
-                          <Zap className="w-5 h-5" />
-                          Regenerate & Replace
+                          <Video className="w-5 h-5" />
+                          Start Video Rendering
                         </>
                       )}
                     </button>
+                    <p className="text-center text-xs text-gray-500 mt-2">
+                      Generate the final video with all audio changes
+                    </p>
                   </div>
-                )}
-
-                <div className="flex items-center justify-end gap-3">
-                  <label
-                    htmlFor="audio-replace-input"
-                    className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium cursor-pointer transition-all duration-200 ${
-                      replacingId === selectedId
-                        ? "border-gray-600/50 bg-gray-800/50 text-gray-400 cursor-not-allowed"
-                        : "border-violet-500/50 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 hover:border-violet-500/70 hover:scale-105"
-                    }`}
-                  >
-                    {replacingId === selectedId ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Replacing...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        Replace Audio
-                      </>
-                    )}
-                  </label>
-                  <input
-                    id="audio-replace-input"
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    disabled={replacingId === selectedId}
-                    onChange={(e) => handleReplaceAudio(e.target.files?.[0] ?? null)}
-                  />
                 </div>
-
-                {isViewingDifferentFromPlaying && playingItem && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm">
-                    <span className="inline-flex w-2 h-2 rounded-full bg-amber-400 animate-pulse" aria-hidden />
-                    <span>Now playing: clip #{playingItem.index + 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedId(playingItem.id); setEditText(playingItem.text ?? ""); setPlayingId(playingItem.id); }}
-                      className="ml-auto text-amber-300 hover:text-amber-100 font-medium underline"
-                    >
-                      View this clip
-                    </button>
-                  </div>
-                )}
-
-                <div className="relative rounded-xl overflow-hidden border border-gray-700/50 bg-gradient-to-br from-gray-800/30 to-gray-900/30 backdrop-blur-sm">
-                  {audioLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/95 z-10 min-h-[120px]">
-                      <div className="flex items-end gap-2 h-16 mb-4">
-                        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                          <div
-                            key={i}
-                            className="w-2 bg-gradient-to-t from-violet-600 via-violet-500 to-purple-400 rounded-full shadow-lg shadow-violet-500/50 waveform-bar"
-                            style={{
-                              animationDelay: `${i * 0.1}s`,
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <p className="text-sm text-violet-300 font-medium animate-pulse">
-                        Loading audio...
-                      </p>
-                    </div>
-                  )}
-                  
-                  {isPlaying && !audioLoading && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-violet-500 animate-pulse" />
-                  )}
-                  
-                  <audio
-                    ref={audioRef}
-                    controls
-                    src={audioSrc}
-                    key={effectivePlayingId ?? "none"}
-                    className="w-full relative bg-transparent"
-                    onLoadStart={() => setAudioLoading(true)}
-                    onCanPlay={() => setAudioLoading(false)}
-                    onLoadedData={() => setAudioLoading(false)}
-                    onError={() => setAudioLoading(false)}
-                    onEnded={handleAudioEnded}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-
-      {/* Start Video Rendering Button */}
-      {items.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-gray-700/50">
-          <button
-            type="button"
-            onClick={handleStartVideoRendering}
-            disabled={startingVideo}
-            className="w-full inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 text-white text-lg font-bold shadow-xl hover:shadow-2xl hover:from-emerald-500 hover:via-green-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
-          >
-            {startingVideo ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                Starting Video Rendering...
-              </>
-            ) : (
-              <>
-                <Video className="w-6 h-6" />
-                Start Video Rendering
-              </>
-            )}
-          </button>
-          <p className="text-center text-xs text-gray-500 mt-2">
-            This will generate the final video with all your audio changes
-          </p>
+              );
+            })()}
+          </div>
         </div>
       )}
-      </>
-    )}
     </Modal>
   );
 }

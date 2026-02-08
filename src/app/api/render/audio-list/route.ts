@@ -17,7 +17,21 @@ type CompositionMessage = {
   audio_path?: string;
   audio_type?: string;
 };
-type CompositionProps = { messages?: CompositionMessage[] };
+
+type JobVoiceSettings = {
+  speed?: number;
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+};
+
+type CompositionProps = {
+  messages?: CompositionMessage[];
+  voiceSettings?: JobVoiceSettings;
+  enableSilenceTrimming?: boolean;
+  voices?: Array<{ name?: string; voiceId?: string }>;
+};
 
 export async function GET(request: Request) {
   const { userId } = await auth();
@@ -68,7 +82,40 @@ export async function GET(request: Request) {
       });
     });
 
-    return NextResponse.json({ items });
+    // Job composition settings used at generation time (for modal defaults)
+    const vs = props?.voiceSettings;
+    const voiceSettings =
+      vs && typeof vs === "object"
+        ? {
+            speed: typeof vs.speed === "number" ? vs.speed : undefined,
+            stability: typeof vs.stability === "number" ? vs.stability : undefined,
+            similarity_boost:
+              typeof vs.similarity_boost === "number"
+                ? vs.similarity_boost
+                : undefined,
+            style: typeof vs.style === "number" ? vs.style : undefined,
+            use_speaker_boost:
+              typeof vs.use_speaker_boost === "boolean"
+                ? vs.use_speaker_boost
+                : undefined,
+          }
+        : undefined;
+    const enableSilenceTrimming =
+      typeof props?.enableSilenceTrimming === "boolean"
+        ? props.enableSilenceTrimming
+        : undefined;
+    const voices = Array.isArray(props?.voices) ? props.voices : [];
+    const voiceId =
+      voices.length > 0 && typeof voices[0]?.voiceId === "string"
+        ? voices[0].voiceId
+        : undefined;
+
+    return NextResponse.json({
+      items,
+      voiceSettings: voiceSettings ?? undefined,
+      enableSilenceTrimming,
+      voiceId: voiceId ?? undefined,
+    });
   } catch (err) {
     console.error("Failed to load audio list:", err);
     return NextResponse.json(
