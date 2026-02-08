@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   console.log(`Status change: ${oldStatus} → ${newStatus}`);
   
   // Skip if status didn't change or not final
-  if (newStatus === oldStatus || !["done", "failed"].includes(newStatus)) {
+  if (newStatus === oldStatus || !["done", "video_generated", "failed"].includes(newStatus)) {
     console.log("⏭️ Skipped - not a final status change");
     return NextResponse.json({ skipped: true });
   }
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const result = await handleJobCompletion(
     record.user_id,
     record.id,
-    newStatus === "done"
+    (newStatus === "done" || newStatus === "video_generated")
   );
   
   console.log("✅ Token handling result:", result);

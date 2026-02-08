@@ -97,7 +97,7 @@ export const usePageNotifications = (
   useEffect(() => {
     if (!isLoaded || !hasFetchedInitialJobs) return;
 
-    const completedJobs = jobs.filter(job => job.status === "done");
+    const completedJobs = jobs.filter(job => job.status === "done" || job.status === "video_generated");
     const currentCompletedJobIds = new Set(completedJobs.map(job => job.created_at));
 
     if (isInitialLoadRef.current) {

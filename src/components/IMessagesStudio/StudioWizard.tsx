@@ -1,27 +1,48 @@
+"use client";
+
 import React, { useState } from "react";
+import { Check, XCircle } from "lucide-react";
+import { useStudioForm, useStudioPreview } from "./StudioProvider";
+import { ScriptStep } from "./steps/ScriptStep";
+import { AppearanceStep } from "./steps/AppearanceStep";
+import { VoiceStep } from "./steps/VoiceStep";
+import { MonetizationStep } from "./steps/MonetizationStep";
+import { PreviewStep } from "./steps/PreviewStep";
 import { Card } from "../Card";
 import { Button } from "../Button";
-import { ChevronLeft, ChevronRight, Check, Eye, XCircle } from "lucide-react";
-import { ScriptStep } from "./steps/ScriptStep";
-import { MonetizationStep } from "./steps/MonetizationStep";
-import { VoiceStep } from "./steps/VoiceStep";
-import { AppearanceStep } from "./steps/AppearanceStep";
-import { PreviewStep } from "./steps/PreviewStep";
-import { useStudioForm, useStudioPreview } from "./StudioProvider";
-import { IMessagesStudioProps } from "./page";
 import { Modal } from "../Modal";
+import type { CompositionPropsType } from "@/types/constants";
+import type { MonetizationPreviewContext } from "@/helpers/previewBuilder";
+
+type StudioWizardProps = {
+  title: string;
+  onGeneratePreview?: (payload: CompositionPropsType) => void;
+  showFinalGenerate?: boolean;
+  finalGenerateLabel?: string;
+  finalGenerateLoading?: boolean;
+  finalGenerateDisabled?: boolean;
+  finalGenerateNotice?: string | null;
+  onGenerateFinal?: (payload: {
+    previewProps: CompositionPropsType;
+    durationInFrames?: number;
+    backgroundFile: File | null;
+    backgroundMusicFile: File | string | null;
+    monetizationContext: MonetizationPreviewContext | null;
+  }) => void;
+  isSubscribed?: boolean;
+};
 
 const STEPS = [
-  { id: 0, title: "Script", component: ScriptStep },
-  { id: 1, title: "Monetization", component: MonetizationStep },
-  { id: 2, title: "Text-to-Speech", component: VoiceStep },
-  { id: 3, title: "Appearance", component: AppearanceStep },
-  { id: 4, title: "Review & Generate", component: PreviewStep },
-];
+  { id: "script", title: "Script", component: ScriptStep },
+  { id: "monetization", title: "Monetization", component: MonetizationStep },
+  { id: "voice", title: "Voice", component: VoiceStep },
+  { id: "appearance", title: "Appearance", component: AppearanceStep },
+  { id: "preview", title: "Preview", component: PreviewStep },
+] as const;
 
-export function StudioWizard(props: IMessagesStudioProps) {
+export function StudioWizard(props: StudioWizardProps) {
   const { currentStep, setCurrentStep, validateStep, getStepErrors, resetForm } = useStudioForm();
-  const { generatePreview } = useStudioPreview();
+  useStudioPreview();
   const CurrentStepComponent = STEPS[currentStep].component;
   const [askConfirmationForResetSettings, setAskConfirmationForResetSettings] = useState(false);
   /** Steps that have been validated (user clicked Next or switched tab). Errors only show for these. */
@@ -56,23 +77,12 @@ export function StudioWizard(props: IMessagesStudioProps) {
     }
   }, [hasStepErrors]);
 
-  const handleNext = () => {
-    setValidatedSteps((prev) => new Set(prev).add(currentStep));
-    if (validateStep(currentStep)) {
-      setCurrentStep(Math.min(currentStep + 1, STEPS.length - 1));
-    }
-  };
-
   const handleStepTabClick = (idx: number) => {
     if (idx !== currentStep) {
       setValidatedSteps((prev) => new Set(prev).add(currentStep));
       validateStep(currentStep);
     }
     setCurrentStep(idx);
-  };
-
-  const handleBack = () => {
-    setCurrentStep(Math.max(currentStep - 1, 0));
   };
 
   return (
@@ -137,7 +147,7 @@ export function StudioWizard(props: IMessagesStudioProps) {
             </button>
           ))}
         </div>
-        <div className="flex w-full justify-end underline cursor-pointer text-red-300 my-4" onClick={() => {setAskConfirmationForResetSettings(true)}}>
+        <div className="flex w-full justify-end underline cursor-pointer text-red-300 my-4" onClick={() => { setAskConfirmationForResetSettings(true); }}>
           Reset settings
         </div>
         <Modal
@@ -197,7 +207,8 @@ export function StudioWizard(props: IMessagesStudioProps) {
                 color: "rgba(255, 255, 255, 0.7)",
                 fontSize: 13,
                 lineHeight: 1.6,
-              }}>
+              }}
+              >
                 <li>All script messages and conversations</li>
                 <li>Monetization settings and campaigns</li>
                 <li>Voice assignments and ElevenLabs API key</li>
@@ -225,51 +236,22 @@ export function StudioWizard(props: IMessagesStudioProps) {
               scrollMarginTop: SCROLL_TOP_OFFSET,
             }}
           >
-            {Object.values(stepErrors)[0]}
+            {Object.entries(stepErrors).map(([key, msg]) => (
+              <div key={key}>{msg}</div>
+            ))}
           </div>
         )}
-
-        <CurrentStepComponent {...props} />
-      </div>
-
-      {/* Navigation Footer */}
-      <div
-        style={{
-          padding: "16px 24px",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "rgba(20,20,20,0.5)",
-        }}
-      >
-        <Button
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          variant="ghost"
-        >
-          <ChevronLeft size={18} /> Back
-        </Button>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-          <div style={{ fontSize: 12, opacity: 0.65 }}>
-            Step {currentStep + 1} of {STEPS.length}
-          </div>
-          <Button
-            onClick={generatePreview}
-            variant="ghost"
-            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
-          >
-            <Eye size={16} />
-            Generate Preview
-          </Button>
-        </div>
-
-        {currentStep < STEPS.length - 1 ? (
-          <Button onClick={handleNext}>
-            Next <ChevronRight size={18} />
-          </Button>
-        ) : null}
+        {currentStep === 4 ? (
+          <PreviewStep
+            finalGenerateDisabled={props.finalGenerateDisabled}
+            finalGenerateLoading={props.finalGenerateLoading}
+            finalGenerateLabel={props.finalGenerateLabel}
+            finalGenerateNotice={props.finalGenerateNotice}
+            onGenerateFinal={props.onGenerateFinal}
+          />
+        ) : (
+          <CurrentStepComponent />
+        )}
       </div>
     </Card>
   );

@@ -32,7 +32,7 @@ export async function GET() {
     const { data: staleHolds } = await supabaseAdmin
       .from("render_jobs")
       .select("*")
-      .eq("status", "queued")
+      .in("status", ["queued", "processing", "audio_generation"])
       .eq("is_flagged_for_issue", false)
       .is("lambda_render_id", null)
       .lt("utc_start", fifteenMinutesAgo);
@@ -86,7 +86,7 @@ export async function GET() {
     console.log(`🚩 Protecting ${flaggedS3Keys.size} files from flagged jobs`);
 
     // ========== CLEANUP YOUR BUCKET ==========
-    const YOUR_PREFIXES = ["renders/", "uploads/", "audios/"];
+    const YOUR_PREFIXES = ["renders/", "uploads/", "audios/", "downloads/"];
 
     for (const PREFIX of YOUR_PREFIXES) {
       console.log(`📁 Checking ${BUCKET}/${PREFIX}`);

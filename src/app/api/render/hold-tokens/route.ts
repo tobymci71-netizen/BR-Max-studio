@@ -19,7 +19,8 @@ export async function POST(request: Request) {
       .insert({
         user_id: userId,
         job_id: crypto.randomUUID() + "_to_be_changed",
-        status: "queued",
+        status: "processing",
+        stage: "audio",
         utc_start: utcStart,
       })
       .select()

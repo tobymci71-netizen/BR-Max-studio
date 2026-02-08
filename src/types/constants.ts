@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { addAppearTimes, type RawMessage } from "../helpers/chatTiming";
 
 export const VIDEO_FPS = 30;
@@ -387,6 +387,10 @@ export const CompositionProps = z.object({
           audioDuration: z.number().nonnegative().default(0),
           audioPath: z.string().optional().default(""),
           appearAt: z.number().nonnegative().optional(),
+          audio_type: z
+            .enum(["original", "replaced", "re-generated"])
+            .optional()
+            .default("original"),
         }),
       ),
     })

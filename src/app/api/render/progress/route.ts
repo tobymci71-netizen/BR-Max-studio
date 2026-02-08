@@ -32,32 +32,44 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // ✅ If audio is being generated, return audio progress
-    if (job.status === "queued") {
+    // ✅ Pre-video stages (includes legacy "queued"): no Lambda yet
+    const preVideoStatuses = ["queued", "processing", "audio_generation", "audio_uploaded", "awaiting_to_start_render"];
+    if (preVideoStatuses.includes(job.status) && !job.lambda_render_id) {
+      const stage =
+        job.status === "queued"
+          ? "generating_audio"
+          : job.status === "audio_generation"
+            ? "generating_audio"
+            : job.status === "audio_uploaded"
+              ? "audio_uploaded"
+              : job.status === "awaiting_to_start_render"
+                ? "awaiting_to_start_render"
+                : "processing";
       return NextResponse.json({
-        status: "queued",
-        stage: "generating_audio",
+        status: job.status,
+        stage,
       });
     }
 
-    // If job is done or failed, return from database
-    if (job.status === "done" || job.status === "failed") {
+    // Terminal: done, video_generated, failed, cancelled
+    if (["done", "video_generated", "failed", "cancelled"].includes(job.status)) {
+      const done = job.status === "done" || job.status === "video_generated";
       return NextResponse.json({
         status: job.status,
         stage: "completed",
-        progress: job.status === "done" ? 100 : 0,
+        progress: done ? 100 : 0,
         s3_url: job.s3_url,
         error_message: job.error_message,
         utc_end: job.utc_end,
-        done: job.status === "done",
+        done,
       });
     }
 
-    // ✅ If processing and has Lambda metadata, get video render progress
+    // ✅ Video generation: has Lambda metadata (new status or legacy "processing")
     if (
-      job.status === "processing" &&
       job.lambda_render_id &&
-      job.lambda_bucket_name
+      job.lambda_bucket_name &&
+      (job.status === "video_generation" || job.status === "processing")
     ) {
       try {
         const progress = await getRenderProgress({
@@ -76,7 +88,7 @@ export async function GET(request: Request) {
         );
 
         return NextResponse.json({
-          status: progress.done ? "done" : "processing",
+          status: progress.done ? "video_generated" : "video_generation",
           stage: "rendering_video",
           progress: progressPercent,
           s3_url: progress.outputFile,
@@ -96,7 +108,7 @@ export async function GET(request: Request) {
         // 🔇 Common harmless case: Lambda hasn't written progress JSON yet
         if (message.includes("Invalid JSON")) {
           return NextResponse.json({
-            status: "processing",
+            status: "video_generation",
             stage: "rendering_video",
             progress: 5,
             done: false,
@@ -107,8 +119,8 @@ export async function GET(request: Request) {
         console.error("Unexpected error getting Lambda progress:", lambdaError);
 
         return NextResponse.json({
-          status: job.status ?? "processing",
-          stage: "processing",
+          status: job.status ?? "video_generation",
+          stage: "rendering_video",
           progress: 50,
           done: false,
         });
@@ -118,8 +130,8 @@ export async function GET(request: Request) {
     // Default fallback
     return NextResponse.json({
       status: job.status,
-      stage: job.status === "processing" ? "processing" : "queued",
-      progress: job.status === "processing" ? 50 : 0,
+      stage: job.status === "video_generation" ? "rendering_video" : "processing",
+      progress: job.status === "video_generation" ? 50 : 0,
     });
   } catch (err) {
     console.error("Progress API error:", err);

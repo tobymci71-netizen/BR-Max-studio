@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    if (job.status === "done") {
+    if (job.status === "done" || job.status === "video_generated") {
       return NextResponse.json(
         { error: "Job already completed" },
         { status: 409 },

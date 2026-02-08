@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   AwsRegion,
@@ -8,6 +9,16 @@ import {
 } from "@remotion/lambda/client";
 import { REGION } from "../../../../config.mjs";
 import { getVideoMetadata } from "./calculateSizeAndDuration";
+
+const BUCKET = process.env.NEXT_PUBLIC_AWS_BUCKET!;
+const REGION_ENV = process.env.NEXT_PUBLIC_AWS_REGION!;
+const s3 = new S3Client({
+  region: REGION_ENV,
+  credentials: {
+    accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY!,
+  },
+});
 
 /**
  * Webhook handler for Remotion Lambda render completion
@@ -111,12 +122,31 @@ export async function POST(request: Request) {
         console.error("Metadata extraction failed:", err);
       }
 
-      const s3_url = outputUrl
+      // Copy to our bucket so we can enforce 1-hour download expiry and cleanup
+      let s3_url = outputUrl;
+      try {
+        const res = await fetch(outputUrl);
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          const key = `downloads/${jobId}/video.mp4`;
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: BUCKET,
+              Key: key,
+              Body: buf,
+              ContentType: res.headers.get("content-type") || "video/mp4",
+            }),
+          );
+          s3_url = `https://${BUCKET}.s3.${REGION_ENV}.amazonaws.com/${key}`;
+        }
+      } catch (copyErr) {
+        console.error("Copy video to our bucket failed, using original URL:", copyErr);
+      }
 
       await supabaseAdmin
         .from("render_jobs")
         .update({
-          status: "done",
+          status: "video_generated",
           s3_url,
           webhook_payload: payload,
           utc_end: utcEnd,

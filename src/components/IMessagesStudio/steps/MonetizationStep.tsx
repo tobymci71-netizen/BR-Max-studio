@@ -193,6 +193,7 @@ export function MonetizationStep() {
         audioDuration: 0,
         audioPath: "",
         showArrow: false,
+        audio_type: "original" as const,
       },
     ];
     updateMonetization({ messages: nextMessages });
