@@ -29,6 +29,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [isReplaceDropActive, setIsReplaceDropActive] = useState(false);
   const [editText, setEditText] = useState("");
   const [speed, setSpeed] = useState(DEFAULT_VOICE_SETTINGS.speed);
   const [stability, setStability] = useState(DEFAULT_VOICE_SETTINGS.stability);
@@ -724,31 +725,77 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                       </div>
                     )}
 
-                    {/* Replace Audio */}
-                    <div>
-                      <label
-                        htmlFor="audio-replace-input"
-                        className="inline-flex items-center gap-2 px-4 py-2 border border-white/15 text-sm font-medium text-gray-300 rounded-lg hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
-                      >
-                        {replacingId === selectedId ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Replacing...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-4 h-4" />
-                            Replace with File
-                          </>
-                        )}
-                      </label>
+                    {/* Replace Audio — drag and drop or click */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (replacingId !== selectedId) setIsReplaceDropActive(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsReplaceDropActive(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsReplaceDropActive(false);
+                        if (replacingId === selectedId) return;
+                        const file = e.dataTransfer.files?.[0];
+                        if (!file) return;
+                        const isAudio =
+                          file.type.startsWith("audio/") ||
+                          /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i.test(file.name);
+                        if (isAudio) handleReplaceAudio(file);
+                      }}
+                      onClick={() => {
+                        if (replacingId !== selectedId)
+                          document.getElementById("audio-replace-input")?.click();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          if (replacingId !== selectedId)
+                            document.getElementById("audio-replace-input")?.click();
+                        }
+                      }}
+                      className={`inline-flex items-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed text-sm font-medium cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                        replacingId === selectedId
+                          ? "border-white/10 bg-white/5 text-gray-500 cursor-not-allowed"
+                          : isReplaceDropActive
+                            ? "border-blue-500/70 bg-blue-500/20 text-white"
+                            : "border-white/15 text-gray-300 hover:bg-white/10 hover:text-white hover:border-white/25"
+                      }`}
+                    >
+                      {replacingId === selectedId ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                          Replacing...
+                        </>
+                      ) : isReplaceDropActive ? (
+                        <>
+                          <Upload className="w-4 h-4 shrink-0" />
+                          Drop audio file here
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 shrink-0" />
+                          Replace with File — or drag and drop
+                        </>
+                      )}
                       <input
                         id="audio-replace-input"
                         type="file"
                         accept="audio/*"
                         className="hidden"
                         disabled={replacingId === selectedId}
-                        onChange={(e) => handleReplaceAudio(e.target.files?.[0] ?? null)}
+                        onChange={(e) => {
+                          handleReplaceAudio(e.target.files?.[0] ?? null);
+                          e.target.value = "";
+                        }}
                       />
                     </div>
                   </div>
