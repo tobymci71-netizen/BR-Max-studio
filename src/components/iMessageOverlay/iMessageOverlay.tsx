@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from "react";
+import React, { useMemo } from "react";
 import Image from "next/image";
 import {
   AbsoluteFill,
@@ -159,16 +159,15 @@ const MessageBubble: React.FC<{
           color: isMe ? colors.textMe : colors.textThem,
           padding: isImageMessage ? "4px" : "9px 20px",
           borderRadius: isImageMessage ? 16 : 32,
-          maxWidth: "75%",
-          width: "fit-content",
-          fontSize: "1em",
+          maxWidth: "65%",
+          fontSize: "1.05em",
           opacity: fade,
           transform: `translateY(${y}px)`,
           lineHeight: "1.3",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           position: "relative",
-          fontWeight: isMe ? 300 : 400,
+          fontWeight: 300,
           overflow: "visible",
         }}
       >
@@ -394,13 +393,13 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
     // Calculate max height for message container
     const maxContainerHeight = VIDEO_HEIGHT - marginTop - marginBottom;
 
-
     return chunkMessagesByHeight(
       messages,
       maxContainerHeight,
       CHAT_SETTINGS?.showTopBarFirstOnly ?? true,
+      settings.theme,
     );
-  }, [messages, marginTop, marginBottom, CHAT_SETTINGS?.showTopBarFirstOnly]);
+  }, [messages, marginTop, marginBottom, CHAT_SETTINGS?.showTopBarFirstOnly, settings.theme]);
 
 
   const monetizationRange = useMemo(() => {

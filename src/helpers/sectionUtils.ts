@@ -78,7 +78,8 @@ const estimateGroupHeight = (messages: Message[]): number => {
 export const chunkMessagesByHeight = (
   messages: Message[],
   maxHeight: number,
-  showTopBarFirstOnly: boolean = true
+  showTopBarFirstOnly: boolean = true,
+  baseTheme: Theme = THEME.LIGHT,
 ): MessageSection[] => {
   if (messages.length === 0) return [];
 
@@ -116,7 +117,7 @@ export const chunkMessagesByHeight = (
       showTopBar,
       conversationRecipientName: message.conversationRecipientName,
       conversationId: message.conversationId,
-      theme: (message.activeTheme ?? THEME.LIGHT) as Theme,
+      theme: (message.activeTheme ?? baseTheme) as Theme,
     };
     currentHeight = 0;
     currentAvailableHeight = getAvailableMessageHeight(showTopBar);
@@ -283,7 +284,7 @@ export const chunkMessagesByHeight = (
         showTopBar: true,
         conversationRecipientName: messages[0]?.conversationRecipientName,
         conversationId: messages[0]?.conversationId,
-        theme: (messages[0]?.activeTheme ?? THEME.LIGHT) as Theme,
+        theme: (messages[0]?.activeTheme ?? baseTheme) as Theme,
       },
     ];
   }

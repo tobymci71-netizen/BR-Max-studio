@@ -40,6 +40,7 @@ const { functionName, alreadyExisted: functionAlreadyExisted } =
   await deployFunction({
     createCloudWatchLogGroup: true,
     memorySizeInMb: RAM,
+    runtimePreference: 'apple-emojis', 
     region: REGION,
     timeoutInSeconds: TIMEOUT,
     diskSizeInMb: DISK,

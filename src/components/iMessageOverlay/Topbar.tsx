@@ -21,9 +21,10 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
         backgroundColor: colors.topBar,
         borderBottom: `1px solid ${colors.border}`,
         display: "flex",
+        paddingBottom: 10,
         flexDirection: "column",
         justifyContent: "start",
-        height: showStatusBar ? 100 * fontScale : 80 * fontScale,
+        height: showStatusBar ? 120 * fontScale : 100 * fontScale,
       }}
     >
       {/* Optional iOS-style status bar */}
@@ -130,7 +131,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           style={{
             position: "absolute",
             left: 32,
-            top: "50%",
+            top: "40%",
             transform: "translateY(-50%)",
             display: "flex",
             alignItems: "center",
@@ -149,8 +150,9 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           </div>
           <span
             style={{
-              display: CHAT_SETTINGS.unreadMessages > 0 ? "inline-block" : "none",
-              background: colors.meBubble,
+              display:
+                CHAT_SETTINGS.unreadMessages > 0 ? "inline-block" : "none",
+              background: colors.icon,
               fontSize: 9 * fontScale,
               color: colors.textMe,
               marginLeft: -20,
@@ -172,7 +174,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            width: "min(70%, 420px)",
+            width: "min(70%, 520px)",
             gap: 6,
             pointerEvents: "none",
           }}
@@ -180,57 +182,26 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           {/* Profile Circle */}
           <div
             style={{
-              width: 45 * fontScale,
-              height: 45  * fontScale,
+              width: 55 * fontScale,
+              height: 55 * fontScale,
               borderRadius: "50%",
               backgroundColor: "rgb(137,141,152)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: "white",
-              fontSize: 16 * fontScale,
+              fontSize: 21 * fontScale,
               userSelect: "none",
             }}
           >
             {recipientName
               ? recipientName
+                  .replace(/[^a-zA-Z\s]/g, "") // remove emojis, numbers, symbols
                   .split(" ")
                   .filter(Boolean)
                   .map((word) => word.charAt(0).toUpperCase())
-                  .join("")
+                  .join("") || "U"
               : "U"}
-          </div>
-          <div
-            style={{
-              marginLeft: -5,
-              position: "relative",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "0.7em",
-                color: colors.textPrimary,
-                fontWeight: 500,
-                textAlign: "center",
-              }}
-            >
-              {recipientName || "Unknown"}
-            </span>
-            <ChevronRight
-              style={{
-                position: "absolute",
-                left: "100%",
-                marginLeft: 4,
-                top: "50%",
-                transform: "translateY(-50%)",
-                opacity: 0.6,
-              }}
-              size={16 * fontScale}
-              color={colors.textSecondary}
-            />
           </div>
         </div>
 
@@ -239,7 +210,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           style={{
             position: "absolute",
             right: 32,
-            top: "50%",
+            top: "40%",
             transform: "translateY(-50%)",
             display: "flex",
             alignItems: "center",
@@ -264,6 +235,47 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
             <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
             <rect x="2" y="6" width="14" height="12" rx="2" />
           </svg>
+        </div>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          marginTop: -10 * fontScale,
+        }}
+      >
+        <div
+          style={{
+            marginLeft: -5,
+            position: "relative",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.7em",
+              color: colors.textPrimary,
+              fontWeight: 500,
+              textAlign: "center",
+            }}
+          >
+            {recipientName || "Unknown"}
+          </span>
+          <ChevronRight
+            style={{
+              position: "absolute",
+              left: "100%",
+              marginLeft: 0,
+              top: "50%",
+              transform: "translateY(-50%)",
+              opacity: 0.6,
+            }}
+            size={16 * fontScale}
+            color={colors.textSecondary}
+          />
         </div>
       </div>
     </div>
