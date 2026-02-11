@@ -452,6 +452,7 @@ type GenerateParams = {
 
   // NEW: silence trimming
   enableSilenceTrimming?: boolean;
+  silenceTrimmingType?: "full_audio" | "start_and_end";
   voiceSettings?: Partial<VoiceSettings>;
 };
 
@@ -468,6 +469,7 @@ export async function generateAudioFile(params: GenerateParams): Promise<{
     modelId = "eleven_multilingual_v2",
     outputFormat = "mp3_44100_128",
     enableSilenceTrimming,
+    silenceTrimmingType = "full_audio",
     voiceSettings,
   } = params;
 
@@ -562,6 +564,7 @@ export async function generateAudioFile(params: GenerateParams): Promise<{
       const trimmed = await removeSilenceFromMp3(bytes, {
         thresholdDb: normalizedVoiceSettings.silenceThresholdDb,
         minSilenceMs: normalizedVoiceSettings.silenceMinSilenceMs,
+        trimMode: silenceTrimmingType,
       });
 
       base64Data = trimmed.base64Data;

@@ -262,6 +262,9 @@ export const CompositionProps = z.object({
   elevenLabsApiKey: z.string().min(1, "ElevenLabs API key is required"),
   // Silence Remover settings
   enableSilenceTrimming: z.boolean().default(false),
+  silenceTrimmingType: z
+    .enum(["full_audio", "start_and_end"])
+    .default("full_audio"),
   voiceSettings: z
     .object({
       stability: z
@@ -502,6 +505,7 @@ export const defaultMyCompProps: CompositionPropsType = {
   showWatermark: false,
   elevenLabsApiKey: "asd",
   enableSilenceTrimming: false,
+  silenceTrimmingType: "full_audio",
   voiceSettings: { ...DEFAULT_VOICE_SETTINGS },
   messages: messagesWithTiming as CompositionPropsType["messages"],
   backgroundVideo: DEFAULT_BACKGROUND_VIDEO,
