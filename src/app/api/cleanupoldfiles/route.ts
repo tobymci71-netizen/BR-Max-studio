@@ -57,16 +57,20 @@ export async function GET() {
     // ========== FETCH FLAGGED JOBS TO PROTECT THEIR FILES ==========
     const { data: flaggedJobs } = await supabaseAdmin
       .from("render_jobs")
-      .select("id, s3_url, utc_end")
+      .select("id, s3_url, flagged_s3_url, utc_end")
       .eq("is_flagged_for_issue", true);
 
     // Extract S3 keys from flagged jobs (only those less than 24 hours old)
     const flaggedS3Keys = new Set<string>();
     if (flaggedJobs) {
       for (const job of flaggedJobs) {
-        if (job.s3_url) {
+        const urlsToProtect = [job.s3_url, job.flagged_s3_url].filter(
+          (u): u is string => typeof u === "string" && u.length > 0,
+        );
+
+        for (const urlStr of urlsToProtect) {
           try {
-            const url = new URL(job.s3_url);
+            const url = new URL(urlStr);
             const key = url.pathname.slice(1); // Remove leading /
 
             // Only protect files less than 24 hours old
@@ -77,7 +81,7 @@ export async function GET() {
               }
             }
           } catch {
-            console.error("Error parsing S3 URL:", job.s3_url);
+            console.error("Error parsing S3 URL:", urlStr);
           }
         }
       }

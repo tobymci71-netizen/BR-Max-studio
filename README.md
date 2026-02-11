@@ -77,7 +77,7 @@ For issues or feature requests, open a GitHub issue or contact the BR MAX engine
 - [ ] Polish onboarding documentation for new contributors.
 
 
-Used to deploy function: npx remotion lambda functions deploy --timeout 900 --region ap-south-1
+Used to deploy function: npx remotion lambda functions deploy --runtime-preference=apple-emojis --timeout 900 --region ap-south-1
 remotion-render-4-0-373-mem2048mb-disk2048mb-120sec
 Used to deploy site: npx remotion lambda sites create src/remotion/index.ts --site-name=br-max --region ap-south-1
 

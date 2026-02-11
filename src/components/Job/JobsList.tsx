@@ -251,6 +251,8 @@ const JobsList = forwardRef((_, ref) => {
   const [flagReason, setFlagReason] = useState("");
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagSuccess, setFlagSuccess] = useState(false);
+  const [regeneratingVideo, setRegeneratingVideo] = useState(false);
+  const [videoRegenerated, setVideoRegenerated] = useState(false);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -265,6 +267,8 @@ const JobsList = forwardRef((_, ref) => {
     setFlagModalOpen(true);
     setFlagReason("");
     setFlagSuccess(false);
+    setRegeneratingVideo(false);
+    setVideoRegenerated(false);
   };
 
   const closeFlagModal = () => {
@@ -272,6 +276,8 @@ const JobsList = forwardRef((_, ref) => {
     setSelectedJobId(null);
     setFlagReason("");
     setFlagSuccess(false);
+    setRegeneratingVideo(false);
+    setVideoRegenerated(false);
   };
 
   const submitFlag = async () => {
@@ -1010,7 +1016,9 @@ const JobsList = forwardRef((_, ref) => {
                 <p className="text-sm text-muted-foreground mb-4">
                   Please describe the issue with this video. Our team will
                   review it and refund your tokens if the video wasn't rendered
-                  properly.
+                  properly. After flagging, you'll also get one free
+                  re-generation of this video that will not use any additional
+                  tokens.
                 </p>
 
                 <div className="mb-4 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
@@ -1064,10 +1072,57 @@ const JobsList = forwardRef((_, ref) => {
                 <h3 className="text-lg font-semibold text-foreground mb-2">
                   Issue Flagged Successfully
                 </h3>
-                <p className="text-sm text-muted-foreground">
-                  Video lifetime extended to 24 hours. Our team will review and
-                  respond soon.
+                <p className="text-sm text-muted-foreground mt-2">
+                  You can re-generate this video one time for free. The
+                  replacement render will not cost any additional tokens.
                 </p>
+
+                <div className="mt-5 space-y-2">
+                  {!videoRegenerated && (
+                    <Button
+                      onClick={async () => {
+                        if (!selectedJobId || regeneratingVideo || videoRegenerated)
+                          return;
+                        try {
+                          setRegeneratingVideo(true);
+                          setInlineError(null);
+                          await handleStartVideo(selectedJobId);
+                          setVideoRegenerated(true);
+                        } catch (error) {
+                          console.error("Error re-generating video:", error);
+                          setInlineError(
+                            error instanceof Error
+                              ? error.message
+                              : "Failed to re-generate video. Please try again.",
+                          );
+                        } finally {
+                          setRegeneratingVideo(false);
+                        }
+                      }}
+                      disabled={!selectedJobId || regeneratingVideo}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent-primary text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {regeneratingVideo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Re-generating video...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4" />
+                          Re-generate video (free, one time)
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {videoRegenerated && (
+                    <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-xs font-medium text-emerald-300">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Free one-time re-generation started</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
