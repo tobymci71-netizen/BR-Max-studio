@@ -647,6 +647,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                     voiceId: task.voiceId,
                     apiKey: previewProps.elevenLabsApiKey!,
                     enableSilenceTrimming: previewProps.enableSilenceTrimming ?? false,
+                    silenceTrimmingType: previewProps.silenceTrimmingType ?? "full_audio",
                     voiceSettings: previewProps.voiceSettings,
                   });
 

@@ -30,6 +30,7 @@ type CompositionProps = {
   messages?: CompositionMessage[];
   voiceSettings?: JobVoiceSettings;
   enableSilenceTrimming?: boolean;
+  silenceTrimmingType?: "full_audio" | "start_and_end";
   voices?: Array<{ name?: string; voiceId?: string }>;
 };
 
@@ -104,6 +105,11 @@ export async function GET(request: Request) {
       typeof props?.enableSilenceTrimming === "boolean"
         ? props.enableSilenceTrimming
         : undefined;
+    const silenceTrimmingType =
+      props?.silenceTrimmingType === "full_audio" ||
+      props?.silenceTrimmingType === "start_and_end"
+        ? props.silenceTrimmingType
+        : undefined;
     const voices = Array.isArray(props?.voices) ? props.voices : [];
     const voiceId =
       voices.length > 0 && typeof voices[0]?.voiceId === "string"
@@ -114,6 +120,7 @@ export async function GET(request: Request) {
       items,
       voiceSettings: voiceSettings ?? undefined,
       enableSilenceTrimming,
+      silenceTrimmingType: silenceTrimmingType ?? undefined,
       voiceId: voiceId ?? undefined,
     });
   } catch (err) {

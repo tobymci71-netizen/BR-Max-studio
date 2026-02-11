@@ -971,6 +971,111 @@ export function VoiceStep() {
               </button>
             </div>
 
+            {audioMode === "snappy" && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(148,163,184,0.2)",
+                  background: "rgba(15,23,42,0.5)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "rgba(226,232,240,0.9)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Trim silence
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateFormValues({
+                        silenceTrimmingType: "full_audio",
+                      })
+                    }
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      background:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "full_audio"
+                          ? "rgba(59,130,246,0.35)"
+                          : "rgba(30,41,59,0.8)",
+                      color:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "full_audio"
+                          ? "white"
+                          : "rgba(203,213,225,0.9)",
+                      borderWidth: 1,
+                      borderStyle: "solid",
+                      borderColor:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "full_audio"
+                          ? "rgba(59,130,246,0.6)"
+                          : "rgba(148,163,184,0.2)",
+                    }}
+                  >
+                    Entire audio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateFormValues({
+                        silenceTrimmingType: "start_and_end",
+                      })
+                    }
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      background:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "start_and_end"
+                          ? "rgba(59,130,246,0.35)"
+                          : "rgba(30,41,59,0.8)",
+                      color:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "start_and_end"
+                          ? "white"
+                          : "rgba(203,213,225,0.9)",
+                      borderWidth: 1,
+                      borderStyle: "solid",
+                      borderColor:
+                        (formValues.silenceTrimmingType ?? "full_audio") === "start_and_end"
+                          ? "rgba(59,130,246,0.6)"
+                          : "rgba(148,163,184,0.2)",
+                    }}
+                  >
+                    Start & end only
+                  </button>
+                </div>
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    fontSize: 11,
+                    opacity: 0.8,
+                    color: "rgba(203,213,225,0.85)",
+                  }}
+                >
+                  {(formValues.silenceTrimmingType ?? "full_audio") === "full_audio"
+                    ? "Removes silence throughout the whole clip."
+                    : "Removes silence only at the beginning and end."}
+                </p>
+              </div>
+            )}
+
             <div
               style={{
                 marginTop: 18,

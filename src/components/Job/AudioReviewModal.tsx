@@ -43,6 +43,9 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   const [apiKey, setApiKey] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [voiceStyle, setVoiceStyle] = useState<"natural" | "snappy">("natural");
+  const [silenceTrimmingType, setSilenceTrimmingType] = useState<
+    "full_audio" | "start_and_end"
+  >("full_audio");
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
   const [startingVideo, setStartingVideo] = useState(false);
@@ -110,6 +113,12 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         }
         if (typeof data.enableSilenceTrimming === "boolean") {
           setVoiceStyle(data.enableSilenceTrimming ? "snappy" : "natural");
+        }
+        if (
+          data.silenceTrimmingType === "full_audio" ||
+          data.silenceTrimmingType === "start_and_end"
+        ) {
+          setSilenceTrimmingType(data.silenceTrimmingType);
         }
         if (typeof data.voiceId === "string" && data.voiceId.trim()) {
           setVoiceId(data.voiceId.trim());
@@ -206,6 +215,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
         voiceId: voiceId.trim(),
         apiKey: apiKey.trim(),
         enableSilenceTrimming: voiceStyle === "snappy",
+        silenceTrimmingType,
         voiceSettings: {
           speed,
           stability,
@@ -707,6 +717,25 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                             <option value="snappy">Snappy (trims silence)</option>
                           </select>
                         </div>
+                        {voiceStyle === "snappy" && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-400 mb-2">
+                              Trim silence
+                            </label>
+                            <select
+                              value={silenceTrimmingType}
+                              onChange={(e) =>
+                                setSilenceTrimmingType(
+                                  e.target.value as "full_audio" | "start_and_end"
+                                )
+                              }
+                              className="w-full px-3 py-2 text-sm bg-white/5 border border-white/15 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+                            >
+                              <option value="full_audio">Entire audio</option>
+                              <option value="start_and_end">Start & end only</option>
+                            </select>
+                          </div>
+                        )}
 
                         <button
                           onClick={handleRegenerateAudio}
