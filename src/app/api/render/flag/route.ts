@@ -19,10 +19,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Please provide a reason for flagging" }, { status: 400 });
     }
 
-    // Verify the job belongs to the user
+    // Verify the job belongs to the user and load current video URL
     const { data: job, error: fetchError } = await supabaseAdmin
       .from("render_jobs")
-      .select("id, user_id, status")
+      .select("id, user_id, status, s3_url, flagged_s3_url")
       .eq("id", jobId)
       .eq("user_id", userId)
       .single();
@@ -34,12 +34,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update the job to mark it as flagged
+    // Update the job to mark it as flagged and snapshot the current video URL
     const { error: updateError } = await supabaseAdmin
       .from("render_jobs")
       .update({
         is_flagged_for_issue: true,
         reason_for_flag: reason.trim(),
+        // Only set on first flag so we always keep the original URL
+        flagged_s3_url: job.flagged_s3_url ?? job.s3_url ?? null,
       })
       .eq("id", jobId)
       .eq("user_id", userId);

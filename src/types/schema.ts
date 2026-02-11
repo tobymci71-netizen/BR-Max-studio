@@ -88,6 +88,7 @@ export interface RenderJob {
   stage: RenderJobStage;
   json_path: string | null;
   s3_url: string | null;
+  flagged_s3_url: string | null;
   composition_props: Record<string, typeof defaultMyCompProps> | null;
   utc_start: string | null;
   utc_end: string | null;

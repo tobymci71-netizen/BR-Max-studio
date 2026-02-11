@@ -107,7 +107,6 @@ const MessageBubble: React.FC<{
   let y = 0;
   const arrowOffset = Math.sin(frame / 10) * 4;
 
-  // appearAt is already adjusted in previewBuilder, no need to add sectionDelay
   const adjustedAppearAt = msg.appearAt;
 
   if (enableAnimation) {
@@ -117,11 +116,9 @@ const MessageBubble: React.FC<{
       config: { damping: 200, stiffness: 100 },
     });
 
-
     fade = interpolate(entrance, [0, 1], [0, 1]);
     y = interpolate(entrance, [0, 1], [20, 0]);
   }
-
 
   const shouldShowArrow = msg.showArrow &&
     frame >= adjustedAppearAt &&
@@ -154,88 +151,95 @@ const MessageBubble: React.FC<{
       )}
       <div
         style={{
-          alignSelf: isMe ? "flex-end" : "flex-start",
-          backgroundColor: isImageMessage && msg.imageUrl ? "" :isMe ? colors.bubbleMe : colors.bubbleThem,
-          color: isMe ? colors.textMe : colors.textThem,
-          padding: isImageMessage ? "4px" : "9px 20px",
-          borderRadius: isImageMessage ? 16 : 32,
+          display: "inline-block",
           maxWidth: "65%",
-          fontSize: "1.05em",
           opacity: fade,
           transform: `translateY(${y}px)`,
-          lineHeight: "1.3",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          position: "relative",
-          fontWeight: 300,
-          overflow: "visible",
         }}
       >
-        {isImageMessage && msg.imageUrl ? (
-          <Image
-            src={msg.imageUrl}
-            alt={msg.imageName || "Image"}
-            width={400}
-            height={400}
-            unoptimized
-            style={{
-              maxHeight: "500px",
-              maxWidth: "100%",
-              width: "auto",
-              height: "auto",
-              borderRadius: "20px",
-              display: "block",
-              border: "1px solid rgba(0, 0, 0, 0.15)",
-            }}
-          />
-        ) : (
-          renderCensoredText(msg.text)
-        )}
-        {isLastInGroup && !isImageMessage && (
-          <>
-            <div
+        <div
+          style={{
+            display: "table", // Changed from inline-block
+            backgroundColor: isImageMessage && msg.imageUrl ? "" : isMe ? colors.bubbleMe : colors.bubbleThem,
+            color: isMe ? colors.textMe : colors.textThem,
+            padding: isImageMessage ? "4px" : "9px 20px",
+            borderRadius: isImageMessage ? 16 : 32,
+            fontSize: "1.05em",
+            lineHeight: "1.3",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            position: "relative",
+            fontWeight: 300,
+            overflow: "visible",
+          }}
+        >
+          {isImageMessage && msg.imageUrl ? (
+            <Image
+              src={msg.imageUrl}
+              alt={msg.imageName || "Image"}
+              width={400}
+              height={400}
+              unoptimized
               style={{
-                position: "absolute",
-                bottom: 0,
-                width: 20,
-                height: 27,
-                backgroundColor: isMe ? colors.bubbleMe : colors.bubbleThem,
-                ...(isMe
-                  ? {
-                      right: -7,
-                      borderBottomLeftRadius: "16px 14px",
-                    }
-                  : {
-                      left: -7,
-                      borderBottomRightRadius: "16px 14px",
-                    }),
+                maxHeight: "500px",
+                maxWidth: "100%",
+                width: "auto",
+                height: "auto",
+                borderRadius: "20px",
+                display: "block",
+                border: "1px solid rgba(0, 0, 0, 0.15)",
               }}
             />
-            <div
-              style={{
-                position: "absolute",
-                bottom: 0,
-                width: 26,
-                height: 27,
-                backgroundColor: colors.cardBg,
-                ...(isMe
-                  ? {
-                      right: -26,
-                      borderBottomLeftRadius: 10,
-                    }
-                  : {
-                      left: -26,
-                      borderBottomRightRadius: 10,
-                    }),
-              }}
-            />
-          </>
-        )}
+          ) : (
+            <span style={{ display: "inline" }}>
+              {renderCensoredText(msg.text)}
+            </span>
+          )}
+          {isLastInGroup && !isImageMessage && (
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  width: 20,
+                  height: 27,
+                  backgroundColor: isMe ? colors.bubbleMe : colors.bubbleThem,
+                  ...(isMe
+                    ? {
+                        right: -7,
+                        borderBottomLeftRadius: "16px 14px",
+                      }
+                    : {
+                        left: -7,
+                        borderBottomRightRadius: "16px 14px",
+                      }),
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  width: 26,
+                  height: 27,
+                  backgroundColor: colors.cardBg,
+                  ...(isMe
+                    ? {
+                        right: -26,
+                        borderBottomLeftRadius: 10,
+                      }
+                    : {
+                        left: -26,
+                        borderBottomRightRadius: 10,
+                      }),
+                }}
+              />
+            </>
+          )}
+        </div>
       </div>
     </>
   );
 };
-
 
 const pickBubbleColors = (settings: ChatSettings) => {
   const theme = THEME_MAP[settings.theme];
@@ -844,6 +848,7 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
                                 gap: "6px",
                                 marginBottom: "12px",
                                 alignItems: isMe ? "flex-end" : "flex-start",
+                                width: "100%",
                               }}
                             >
                               {group.map((msg, msgIndex) => {
