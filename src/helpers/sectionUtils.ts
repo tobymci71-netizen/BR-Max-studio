@@ -25,11 +25,20 @@ export const chunkMessages = (
 };
 
 /**
- * Estimates the height of a message bubble in pixels
- * Made conservative to prevent overflow
+ * Base line height and chars-per-line at 100% font scale (matches overlay at 100%).
+ * Scaled by fontSizePercent so sectioning matches the actual rendered bubble size.
  */
-const estimateMessageHeight = (message: Message): number => {
+const BASE_LINE_HEIGHT = 26; // ~1.3 line-height at 100% font
+const BASE_CHARS_PER_LINE = 42;
+
+/**
+ * Estimates the height of a message bubble in pixels
+ * Made conservative to prevent overflow.
+ * fontSizePercent: same as IMESSAGE_FONT_SIZE_PERCENT (e.g. 230) so estimates match overlay.
+ */
+const estimateMessageHeight = (message: Message, fontSizePercent: number): number => {
   const TAIL_HEIGHT = 6; // Reduced height for bubble tail
+  const scale = fontSizePercent / 100;
 
   // Check if this is an image message
   if (message.type === "image" && message.imageUrl) {
@@ -40,10 +49,10 @@ const estimateMessageHeight = (message: Message): number => {
     return IMAGE_MAX_HEIGHT + IMAGE_BUBBLE_PADDING;
   }
 
-  // Text message calculation
+  // Text message: scale with font size so larger font = taller lines, fewer chars per line
   const BUBBLE_PADDING_VERTICAL = 12 * 2; // top + bottom padding
-  const LINE_HEIGHT = 60; // Updated to match lineHeight: 1.6 (base font ~37px * 1.6 ≈ 60px)
-  const CHARS_PER_LINE = 42; // Balanced estimate
+  const LINE_HEIGHT = BASE_LINE_HEIGHT * scale;
+  const CHARS_PER_LINE = Math.max(10, Math.floor(BASE_CHARS_PER_LINE / scale));
 
   const textLines = Math.ceil(message.text.length / CHARS_PER_LINE);
   const textHeight = textLines * LINE_HEIGHT;
@@ -54,7 +63,7 @@ const estimateMessageHeight = (message: Message): number => {
 /**
  * Estimates the height of a message group (consecutive messages from same sender)
  */
-const estimateGroupHeight = (messages: Message[]): number => {
+const estimateGroupHeight = (messages: Message[], fontSizePercent: number): number => {
   if (messages.length === 0) return 0;
 
   const MESSAGE_GAP = 6; // gap between messages in a group
@@ -63,7 +72,7 @@ const estimateGroupHeight = (messages: Message[]): number => {
 
   let totalHeight = 0;
   for (let i = 0; i < messages.length; i++) {
-    totalHeight += estimateMessageHeight(messages[i]);
+    totalHeight += estimateMessageHeight(messages[i], fontSizePercent);
     if (i < messages.length - 1) {
       totalHeight += MESSAGE_GAP;
     }
@@ -73,13 +82,15 @@ const estimateGroupHeight = (messages: Message[]): number => {
 };
 
 /**
- * Chunks messages based on maximum available height instead of fixed count
+ * Chunks messages based on maximum available height instead of fixed count.
+ * fontSizePercent should match IMESSAGE_FONT_SIZE_PERCENT so height estimates match the overlay.
  */
 export const chunkMessagesByHeight = (
   messages: Message[],
   maxHeight: number,
   showTopBarFirstOnly: boolean = true,
   baseTheme: Theme = THEME.LIGHT,
+  fontSizePercent: number = 100,
 ): MessageSection[] => {
   if (messages.length === 0) return [];
 
@@ -178,7 +189,7 @@ export const chunkMessagesByHeight = (
       }
     }
 
-    const groupHeight = estimateGroupHeight(senderGroup);
+    const groupHeight = estimateGroupHeight(senderGroup, fontSizePercent);
     const gapHeight = currentSection !== null && (currentSection as MessageSection).messages.length > 0 ? GAP_BETWEEN_GROUPS : 0;
     const totalHeightWithGroup = currentHeight + gapHeight + groupHeight;
 
@@ -211,7 +222,7 @@ export const chunkMessagesByHeight = (
         const messagesInThisChunk: Message[] = [];
 
         while (groupIndex < senderGroup.length) {
-          const messageHeight = estimateMessageHeight(senderGroup[groupIndex]);
+          const messageHeight = estimateMessageHeight(senderGroup[groupIndex], fontSizePercent);
           const messageGap = messagesInThisChunk.length > 0 ? 6 : 0; // MESSAGE_GAP
           const newHeight = sectionHeight + messageGap + messageHeight;
 
@@ -260,7 +271,7 @@ export const chunkMessagesByHeight = (
     if (currentSection !== null) {
       const section = currentSection as MessageSection;
       section.messages.push(...senderGroup);
-      currentHeight = estimateGroupHeight(senderGroup);
+      currentHeight = estimateGroupHeight(senderGroup, fontSizePercent);
     }
     i = j;
   }

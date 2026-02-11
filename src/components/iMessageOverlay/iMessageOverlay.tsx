@@ -392,7 +392,7 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
     settings.marginBottom ?? defaultMyCompProps.CHAT_SETTINGS.marginBottom;
 
 
-  /** Split into screens based on available height */
+  /** Split into screens based on available height (uses font size so sections don't overflow into bottom gap) */
   const messageSections = useMemo<MessageSection[]>(() => {
     // Calculate max height for message container
     const maxContainerHeight = VIDEO_HEIGHT - marginTop - marginBottom;
@@ -402,6 +402,7 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
       maxContainerHeight,
       CHAT_SETTINGS?.showTopBarFirstOnly ?? true,
       settings.theme,
+      IMESSAGE_FONT_SIZE_PERCENT,
     );
   }, [messages, marginTop, marginBottom, CHAT_SETTINGS?.showTopBarFirstOnly, settings.theme]);
 
