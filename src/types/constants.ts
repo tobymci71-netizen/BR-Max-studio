@@ -251,6 +251,15 @@ export const CompositionProps = z.object({
       // Optional flags for UI toggles (future-friendly)
       showStatusBar: z.boolean().default(false),
       chatShadowPreset: z.enum(CHAT_SHADOW_PRESET_VALUES).default("medium"),
+      recipientAvatars: z
+        .record(
+          z.string(),
+          z.object({
+            mode: z.enum(["initials", "image"]).default("initials"),
+            imageUrl: z.string().optional(),
+          }),
+        )
+        .default({}),
     })
     .default({}),
   backgroundVideo: z.string().optional(),

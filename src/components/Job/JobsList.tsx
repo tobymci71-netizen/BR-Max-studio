@@ -618,7 +618,7 @@ const JobsList = forwardRef((_, ref) => {
 
               const hasEnded = !!job.utc_end;
               const expiryMs = hasEnded
-                ? new Date(job.utc_end!).getTime() + 60 * 60 * 1000
+                ? new Date(job.utc_end!).getTime() + 2 * 60 * 60 * 1000
                 : null;
               const remainingMin = expiryMs
                 ? ceilMinutes(expiryMs - now)
@@ -627,7 +627,7 @@ const JobsList = forwardRef((_, ref) => {
 
               // Confirmation window: 1 hour from job start for awaiting_to_start_render
               const confirmExpiryMs = job.utc_start
-                ? new Date(job.utc_start).getTime() + 60 * 60 * 1000
+                ? new Date(job.utc_start).getTime() + 2 * 60 * 60 * 1000
                 : null;
               const confirmRemainingMin =
                 confirmExpiryMs !== null
@@ -886,7 +886,7 @@ const JobsList = forwardRef((_, ref) => {
                                 The download link expired after{" "}
                                 {job.is_flagged_for_issue
                                   ? "24 hours"
-                                  : "1 hour"}
+                                  : "2 hours"}
                                 . Please create a new render if you still need
                                 this video.
                               </p>
@@ -1025,7 +1025,7 @@ const JobsList = forwardRef((_, ref) => {
                   <p className="text-xs text-cyan-400 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     <span>
-                      Flagging extends video lifetime from 1 hour to 24 hours
+                      Flagging extends video lifetime from 2 hours to 24 hours
                     </span>
                   </p>
                 </div>

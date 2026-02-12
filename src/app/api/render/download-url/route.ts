@@ -14,7 +14,7 @@ const s3 = new S3Client({
   },
 });
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   const { userId } = await auth();
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const endMs = job.utc_end ? new Date(job.utc_end).getTime() : 0;
-  const expiryMs = endMs + ONE_HOUR_MS;
+  const expiryMs = endMs + TWO_HOURS_MS;
   if (now > expiryMs) {
     return NextResponse.json({ error: "Download link expired" }, { status: 410 });
   }
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     const signed = await getSignedUrl(
       s3,
       new GetObjectCommand({ Bucket: BUCKET, Key: key }),
-      { expiresIn: 3600 },
+      { expiresIn: 7200 },
     );
     return NextResponse.redirect(signed, 302);
   }

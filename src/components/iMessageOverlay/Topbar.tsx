@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, WifiOff } from "lucide-react";
 import {
   ChatSettings,
@@ -9,11 +10,37 @@ import {
 type Props = ChatSettings;
 
 export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
-  const { deviceTime, wifi, recipientName, theme, showStatusBar } =
-    CHAT_SETTINGS;
+  const {
+    deviceTime,
+    wifi,
+    recipientName,
+    theme,
+    showStatusBar,
+    recipientAvatars,
+  } = CHAT_SETTINGS;
 
   const colors = THEME_MAP[theme];
   const fontScale = IMESSAGE_FONT_SIZE_PERCENT / 100;
+
+  const normalizedRecipientName = (recipientName ?? "").trim();
+  const avatarConfig =
+    normalizedRecipientName && recipientAvatars
+      ? recipientAvatars[normalizedRecipientName]
+      : undefined;
+
+  const shouldShowImageAvatar =
+    !!avatarConfig &&
+    avatarConfig.mode === "image" &&
+    !!avatarConfig.imageUrl &&
+    avatarConfig.imageUrl.trim().length > 0;
+
+  const initials =
+    recipientName
+      ?.replace(/[^a-zA-Z\s]/g, "") // remove emojis, numbers, symbols
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("") || "U";
 
   return (
     <div
@@ -194,14 +221,23 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
               userSelect: "none",
             }}
           >
-            {recipientName
-              ? recipientName
-                  .replace(/[^a-zA-Z\s]/g, "") // remove emojis, numbers, symbols
-                  .split(" ")
-                  .filter(Boolean)
-                  .map((word) => word.charAt(0).toUpperCase())
-                  .join("") || "U"
-              : "U"}
+            {shouldShowImageAvatar && avatarConfig?.imageUrl ? (
+              <Image
+                src={avatarConfig.imageUrl}
+                alt={recipientName || "Recipient avatar"}
+                width={55 * fontScale}
+                height={55 * fontScale}
+                unoptimized
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              initials
+            )}
           </div>
         </div>
 
@@ -237,6 +273,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           </svg>
         </div>
       </div>
+      
       <div
         style={{
           width: "100%",

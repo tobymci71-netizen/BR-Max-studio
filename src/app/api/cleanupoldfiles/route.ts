@@ -126,8 +126,8 @@ export async function GET() {
 
           const ageMs = now - new Date(obj.LastModified!).getTime();
 
-          // Delete if older than 1 hour
-          if (ageMs > 3600 * 1000) {
+          // Delete if older than 2 hours
+          if (ageMs > 2 * 3600 * 1000) {
             toDelete.push(obj.Key);
           }
         }
