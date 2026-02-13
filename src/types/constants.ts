@@ -564,6 +564,7 @@ export const defaultMyCompProps: CompositionPropsType = {
     recipientName: "Sophia",
     showStatusBar: false,
     chatShadowPreset: "medium",
+    recipientAvatars: {},
   },
 };
 
