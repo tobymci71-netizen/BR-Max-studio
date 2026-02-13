@@ -609,7 +609,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                             <input
                               type="range"
                               min={0.7}
-                              max={1.5}
+                              max={1.2}
                               step={0.05}
                               value={speed}
                               onChange={(e) => setSpeed(parseFloat(e.target.value))}
