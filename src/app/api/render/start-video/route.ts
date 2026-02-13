@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { CONFIRMATION_AND_VIDEO_AVAILABILITY_MS } from "@/types/constants";
+import { buildPreviewProps } from "@/helpers/previewBuilder";
+import type { CompositionPropsType } from "@/types/constants";
 import {
   renderMediaOnLambda,
   speculateFunctionName,
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const props = job.composition_props as Record<string, unknown> | null;
+    const props = job.composition_props as CompositionPropsType | null;
     if (!props) {
       return NextResponse.json(
         {
@@ -127,10 +129,18 @@ export async function POST(request: Request) {
       backgroundVideoUrl = `https://${bucket}.s3.${region}.amazonaws.com/background_video.mp4`;
     }
 
-    const inputProps = {
+    // Rebuild props with forceRecalc to ensure timing is recalculated based on updated audio durations
+    // This is critical when audio has been regenerated with different durations
+    const propsWithBackground = {
       ...props,
       backgroundVideo: backgroundVideoUrl,
     };
+
+    const { previewProps: rebuiltProps } = buildPreviewProps(propsWithBackground, {
+      forceMessageTiming: true,
+    });
+
+    const inputProps = rebuiltProps;
 
     console.log(`🚀 Starting Lambda render for job ${jobId} (stage: video)`);
 
