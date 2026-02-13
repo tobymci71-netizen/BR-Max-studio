@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { CONFIRMATION_AND_VIDEO_AVAILABILITY_MS } from "@/types/constants";
 import {
   renderMediaOnLambda,
   speculateFunctionName,
@@ -79,13 +80,27 @@ export async function POST(request: Request) {
 
     const { data: job, error: fetchError } = await supabaseAdmin
       .from("render_jobs")
-      .select("id, composition_props, stage")
+      .select("id, composition_props, stage, utc_start")
       .eq("id", jobId)
       .eq("user_id", uid)
       .single();
 
     if (fetchError || !job) {
       return NextResponse.json({ error: "Invalid job ID" }, { status: 400 });
+    }
+
+    // Enforce confirmation window: user must start video within 2 hours of job start (audio phase)
+    if (job.utc_start) {
+      const startMs = new Date(job.utc_start).getTime();
+      if (Date.now() - startMs > CONFIRMATION_AND_VIDEO_AVAILABILITY_MS) {
+        return NextResponse.json(
+          {
+            error: "Confirmation window expired",
+            message: "The time to review audio and start video has passed. Please create a new render.",
+          },
+          { status: 410 }
+        );
+      }
     }
 
     const props = job.composition_props as Record<string, unknown> | null;

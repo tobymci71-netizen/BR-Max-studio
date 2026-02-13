@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { CONFIRMATION_AND_VIDEO_AVAILABILITY_MS } from "@/types/constants";
 
 const BUCKET = process.env.NEXT_PUBLIC_AWS_BUCKET!;
 const REGION = process.env.NEXT_PUBLIC_AWS_REGION!;
@@ -13,8 +14,6 @@ const s3 = new S3Client({
     secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY!,
   },
 });
-
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   const { userId } = await auth();
@@ -46,7 +45,7 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const endMs = job.utc_end ? new Date(job.utc_end).getTime() : 0;
-  const expiryMs = endMs + TWO_HOURS_MS;
+  const expiryMs = endMs + CONFIRMATION_AND_VIDEO_AVAILABILITY_MS;
   if (now > expiryMs) {
     return NextResponse.json({ error: "Download link expired" }, { status: 410 });
   }
@@ -58,7 +57,7 @@ export async function GET(request: Request) {
     const signed = await getSignedUrl(
       s3,
       new GetObjectCommand({ Bucket: BUCKET, Key: key }),
-      { expiresIn: 7200 },
+      { expiresIn: Math.floor(CONFIRMATION_AND_VIDEO_AVAILABILITY_MS / 1000) },
     );
     return NextResponse.redirect(signed, 302);
   }

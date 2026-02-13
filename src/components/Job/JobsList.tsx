@@ -27,6 +27,7 @@ import {
 import { useSupabase } from "@/hooks/useSupabaseClient";
 import { Button } from "../Button";
 import { formatMinutes } from "@/lib/utils";
+import { CONFIRMATION_AND_VIDEO_AVAILABILITY_MS } from "@/types/constants";
 import { AudioReviewModal } from "./AudioReviewModal";
 
 type TimeFilter = "all" | "1h" | "6h" | "today" | "yesterday";
@@ -618,16 +619,16 @@ const JobsList = forwardRef((_, ref) => {
 
               const hasEnded = !!job.utc_end;
               const expiryMs = hasEnded
-                ? new Date(job.utc_end!).getTime() + 2 * 60 * 60 * 1000
+                ? new Date(job.utc_end!).getTime() + CONFIRMATION_AND_VIDEO_AVAILABILITY_MS
                 : null;
               const remainingMin = expiryMs
                 ? ceilMinutes(expiryMs - now)
                 : null;
               const expired = expiryMs ? now > expiryMs : false;
 
-              // Confirmation window: 1 hour from job start for awaiting_to_start_render
+              // Confirmation window: time from job start to review audio and start video
               const confirmExpiryMs = job.utc_start
-                ? new Date(job.utc_start).getTime() + 2 * 60 * 60 * 1000
+                ? new Date(job.utc_start).getTime() + CONFIRMATION_AND_VIDEO_AVAILABILITY_MS
                 : null;
               const confirmRemainingMin =
                 confirmExpiryMs !== null
