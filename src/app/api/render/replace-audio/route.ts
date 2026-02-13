@@ -134,6 +134,11 @@ export async function POST(request: Request) {
       }
       if (resolvedDuration != null) {
         messages[idx].audioDuration = resolvedDuration;
+        // Clear appearAt for this message and all subsequent messages to force recalculation
+        // This ensures timing is recalculated based on the new audio duration
+        for (let i = idx; i < messages.length; i++) {
+          delete (messages[i] as { appearAt?: number }).appearAt;
+        }
       }
       if (typeof audioType === "string") {
         messages[idx].audio_type = audioType;

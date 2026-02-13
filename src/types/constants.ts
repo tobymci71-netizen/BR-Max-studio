@@ -251,6 +251,15 @@ export const CompositionProps = z.object({
       // Optional flags for UI toggles (future-friendly)
       showStatusBar: z.boolean().default(false),
       chatShadowPreset: z.enum(CHAT_SHADOW_PRESET_VALUES).default("medium"),
+      recipientAvatars: z
+        .record(
+          z.string(),
+          z.object({
+            mode: z.enum(["initials", "image"]).default("initials"),
+            imageUrl: z.string().optional(),
+          }),
+        )
+        .default({}),
     })
     .default({}),
   backgroundVideo: z.string().optional(),
@@ -555,10 +564,13 @@ export const defaultMyCompProps: CompositionPropsType = {
     recipientName: "Sophia",
     showStatusBar: false,
     chatShadowPreset: "medium",
+    recipientAvatars: {},
   },
 };
 
 /** ====== Video constants ====== */
+/** Time (ms) user has to review audio and start video, and video download availability after render. */
+export const CONFIRMATION_AND_VIDEO_AVAILABILITY_MS = 2 * 60 * 60 * 1000; // 2 hours
 export const DURATION_IN_FRAMES = totalFrames;
 export const VIDEO_WIDTH = 1080;
 export const VIDEO_HEIGHT = 1920;

@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { CONFIRMATION_AND_VIDEO_AVAILABILITY_MS } from "@/types/constants";
+import { buildPreviewProps } from "@/helpers/previewBuilder";
+import type { CompositionPropsType } from "@/types/constants";
 import {
   renderMediaOnLambda,
   speculateFunctionName,
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
 
     const { data: job, error: fetchError } = await supabaseAdmin
       .from("render_jobs")
-      .select("id, composition_props, stage")
+      .select("id, composition_props, stage, utc_start")
       .eq("id", jobId)
       .eq("user_id", uid)
       .single();
@@ -88,7 +91,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid job ID" }, { status: 400 });
     }
 
-    const props = job.composition_props as Record<string, unknown> | null;
+    // Enforce confirmation window: user must start video within 2 hours of job start (audio phase)
+    if (job.utc_start) {
+      const startMs = new Date(job.utc_start).getTime();
+      if (Date.now() - startMs > CONFIRMATION_AND_VIDEO_AVAILABILITY_MS) {
+        return NextResponse.json(
+          {
+            error: "Confirmation window expired",
+            message: "The time to review audio and start video has passed. Please create a new render.",
+          },
+          { status: 410 }
+        );
+      }
+    }
+
+    const props = job.composition_props as CompositionPropsType | null;
     if (!props) {
       return NextResponse.json(
         {
@@ -112,10 +129,18 @@ export async function POST(request: Request) {
       backgroundVideoUrl = `https://${bucket}.s3.${region}.amazonaws.com/background_video.mp4`;
     }
 
-    const inputProps = {
+    // Rebuild props with forceRecalc to ensure timing is recalculated based on updated audio durations
+    // This is critical when audio has been regenerated with different durations
+    const propsWithBackground = {
       ...props,
       backgroundVideo: backgroundVideoUrl,
     };
+
+    const { previewProps: rebuiltProps } = buildPreviewProps(propsWithBackground, {
+      forceMessageTiming: true,
+    });
+
+    const inputProps = rebuiltProps;
 
     console.log(`🚀 Starting Lambda render for job ${jobId} (stage: video)`);
 

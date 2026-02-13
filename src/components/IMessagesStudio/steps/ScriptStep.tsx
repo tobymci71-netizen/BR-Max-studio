@@ -25,6 +25,7 @@ import {
   Plus,
   ChevronDown,
   Eye,
+  CircleUser,
 } from "lucide-react";
 import { useStudioForm } from "../StudioProvider";
 import { useScriptParser } from "../hooks/useScriptParser";
@@ -233,6 +234,7 @@ export function ScriptStep() {
   );
   const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
   const [imagePreviewModal, setImagePreviewModal] = useState<{ name: string; url: string } | null>(null);
+  const [profilePicturesModalOpen, setProfilePicturesModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const tableBodyRef = useRef<HTMLDivElement | null>(null);
@@ -550,6 +552,105 @@ export function ScriptStep() {
       updateFormValues({ messages: updatedMessages });
     }
   }, [formValues.messages, updateFormValues]);
+
+  const handleRecipientAvatarModeChange = useCallback(
+    (recipientName: string, useCustom: boolean) => {
+      const currentAvatars =
+        formValues.CHAT_SETTINGS.recipientAvatars ?? {};
+      const existing = currentAvatars[recipientName] ?? {
+        mode: "initials" as const,
+        imageUrl: undefined as string | undefined,
+      };
+
+      const nextAvatars = {
+        ...currentAvatars,
+        [recipientName]: {
+          ...existing,
+          mode: useCustom ? ("image" as const) : ("initials" as const),
+        },
+      };
+
+      updateChatSettings("recipientAvatars", nextAvatars);
+    },
+    [formValues.CHAT_SETTINGS.recipientAvatars, updateChatSettings],
+  );
+
+  const handleRecipientAvatarFileChange = useCallback(
+    (recipientName: string, file: File | null) => {
+      const currentAvatars =
+        formValues.CHAT_SETTINGS.recipientAvatars ?? {};
+
+      if (!file) {
+        const existing = currentAvatars[recipientName];
+        if (!existing) return;
+
+        const nextAvatars = {
+          ...currentAvatars,
+          [recipientName]: {
+            ...existing,
+            imageUrl: undefined,
+          },
+        };
+
+        updateChatSettings("recipientAvatars", nextAvatars);
+        try {
+          window.localStorage.removeItem(`br-max-avatar-${recipientName}`);
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
+
+      if (!file.type.startsWith("image/")) {
+        toast.showToast({
+          type: "error",
+          message: "Please upload a valid image file (PNG, JPG, WebP, etc.).",
+        });
+        return;
+      }
+
+      if (file.size > MAX_SIZE_BYTES) {
+        toast.showToast({
+          type: "error",
+          message: "Profile pictures must be smaller than 2MB.",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        const existing = currentAvatars[recipientName] ?? {
+          mode: "image" as const,
+          imageUrl: undefined as string | undefined,
+        };
+
+        const nextAvatars = {
+          ...currentAvatars,
+          [recipientName]: {
+            ...existing,
+            mode: "image" as const,
+            imageUrl: dataUrl,
+          },
+        };
+
+        updateChatSettings("recipientAvatars", nextAvatars);
+
+        try {
+          window.localStorage.setItem(
+            `br-max-avatar-${recipientName}`,
+            dataUrl,
+          );
+        } catch {
+          // ignore quota / availability errors
+        }
+      };
+      reader.readAsDataURL(file);
+    },
+    [formValues.CHAT_SETTINGS.recipientAvatars, updateChatSettings, toast],
+  );
 
   // Simple view handlers
   const updateSimpleRows = useCallback(
@@ -1539,6 +1640,67 @@ export function ScriptStep() {
           </div>
         )}
 
+        {tooltipRecipientNames.length > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setProfilePicturesModalOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#e5e7eb",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "background 0.15s, border-color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
+              }}
+            >
+              <CircleUser size={18} style={{ flexShrink: 0 }} />
+              <span>Profile pictures for top bar</span>
+              {(() => {
+                const avatars = formValues.CHAT_SETTINGS.recipientAvatars ?? {};
+                const withCustom = tooltipRecipientNames.filter(
+                  (n) => avatars[n.trim()]?.mode === "image" && avatars[n.trim()]?.imageUrl,
+                ).length;
+                if (withCustom === 0) return null;
+                return (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      opacity: 0.8,
+                      fontWeight: 400,
+                    }}
+                  >
+                    · {withCustom} custom
+                  </span>
+                );
+              })()}
+            </button>
+          </div>
+        )}
+
         <div
           style={{
             marginTop: 12,
@@ -2251,6 +2413,183 @@ export function ScriptStep() {
             </div>
           </div>
         )}
+      </Modal>
+      {/* Profile pictures for top bar (per recipient) */}
+      <Modal
+        open={profilePicturesModalOpen}
+        onClose={() => setProfilePicturesModalOpen(false)}
+        title="Profile pictures for top bar"
+        width={520}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: "rgba(255,255,255,0.75)",
+              lineHeight: 1.5,
+            }}
+          >
+            Choose whether each recipient shows initials or a custom profile picture in the chat top bar. These appear when the video is rendered.
+          </p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            {tooltipRecipientNames.map((name) => {
+              const trimmed = name.trim();
+              if (!trimmed) return null;
+
+              const avatars =
+                formValues.CHAT_SETTINGS.recipientAvatars ?? {};
+              const config = avatars[trimmed] ?? {
+                mode: "initials" as const,
+                imageUrl: undefined as string | undefined,
+              };
+              const useCustom = config.mode === "image";
+              const uploadId = `recipient-avatar-modal-${trimmed.replace(
+                /\s+/g,
+                "-",
+              )}`;
+
+              return (
+                <div
+                  key={trimmed}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: "rgba(0,0,0,0.25)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 12,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#f3f4f6" }}>
+                      {trimmed}
+                    </span>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                        color: "rgba(255,255,255,0.85)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={useCustom}
+                        onChange={(e) =>
+                          handleRecipientAvatarModeChange(
+                            trimmed,
+                            e.target.checked,
+                          )
+                        }
+                      />
+                      <span>Use custom profile picture</span>
+                    </label>
+                  </div>
+
+                  {useCustom && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {config.imageUrl ? (
+                        <div
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: "50%",
+                            overflow: "hidden",
+                            border: "2px solid rgba(255,255,255,0.15)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Image
+                            src={config.imageUrl}
+                            alt={trimmed}
+                            width={48}
+                            height={48}
+                            unoptimized
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                      <div
+                        style={{
+                          flex: "1 1 120px",
+                          minWidth: 0,
+                          fontSize: 12,
+                          color: config.imageUrl
+                            ? "rgba(255,255,255,0.7)"
+                            : "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        {config.imageUrl
+                          ? "Custom image set. Use \"Change\" to replace."
+                          : "PNG, JPG or WebP, max 2MB."}
+                      </div>
+                      <label
+                        htmlFor={uploadId}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: 8,
+                          border: "1px dashed rgba(255,255,255,0.3)",
+                          background: "rgba(255,255,255,0.06)",
+                          color: "#d1d5db",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Upload size={14} />
+                        {config.imageUrl ? "Change image" : "Upload image"}
+                      </label>
+                      <input
+                        id={uploadId}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          handleRecipientAvatarFileChange(trimmed, file);
+                          event.target.value = "";
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </Modal>
       <style>{`
         code {

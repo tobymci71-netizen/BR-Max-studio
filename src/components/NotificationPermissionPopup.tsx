@@ -93,7 +93,7 @@ export const NotificationPermissionPopup = ({
 
               <div className="text-gray-300 mb-6 space-y-3">
                 <p className="text-sm">
-                  Your video will be ready soon, but it'll only be available for <strong className="text-white">1 hour</strong> before auto-deletion.
+                  Your video will be ready soon, but it'll only be available for <strong className="text-white">2 hours</strong> before auto-deletion.
                 </p>
                 <div 
                   className="border rounded-xl p-3 text-sm"
@@ -169,7 +169,7 @@ export const NotificationPermissionPopup = ({
                   </p>
                 </div>
                 <p className="text-xs text-gray-400 mt-2">
-                  ⚠️ Remember: Your video expires after 1 hour!
+                  ⚠️ Remember: Your video expires after 2 hours!
                 </p>
               </div>
 

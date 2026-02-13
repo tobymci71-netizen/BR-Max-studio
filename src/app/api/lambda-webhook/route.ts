@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         console.error("Metadata extraction failed:", err);
       }
 
-      // Copy to our bucket so we can enforce 1-hour/24-hour download expiry and cleanup.
+      // Copy to our bucket so we can enforce 2-hour/24-hour download expiry and cleanup.
       // If this job already has a video URL, treat this as a re-generation and
       // store it under a different key with `_regenerated` before the extension
       // so we never overwrite the original.
