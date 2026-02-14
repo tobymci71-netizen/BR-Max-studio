@@ -169,7 +169,7 @@ const MessageBubble: React.FC<{
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             position: "relative",
-            fontWeight: 300,
+            fontWeight: 400,
             overflow: "visible",
           }}
         >
