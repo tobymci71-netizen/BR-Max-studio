@@ -48,6 +48,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
   >("full_audio");
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
+  const [updateMessageText, setUpdateMessageText] = useState(false);
   const [startingVideo, setStartingVideo] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Cache-bust playback after replace/regenerate so the new file is loaded (same URL, new content)
@@ -157,6 +158,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
     setRegenerating(false);
     setReplacingId(null);
     setShowRegenerateOptions(false);
+    setUpdateMessageText(false);
     setStartingVideo(false);
     setSearchQuery("");
     setUrlVersion({});
@@ -233,7 +235,7 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
           audioId: selectedId,
           base64Data,
           mimeType: "audio/mpeg",
-          updatedText: editText,
+          ...(updateMessageText && { updatedText: editText }),
           duration,
           audioType: "re-generated",
         }),
@@ -245,7 +247,11 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       setItems((prev) =>
         prev.map((item) =>
           item.id === selectedId
-            ? { ...item, text: editText, audioType: "re-generated" }
+            ? {
+                ...item,
+                ...(updateMessageText && { text: editText }),
+                audioType: "re-generated",
+              }
             : item,
         ),
       );
@@ -736,6 +742,18 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
                             </select>
                           </div>
                         )}
+
+                        <label className="flex items-center gap-2 cursor-pointer text-gray-400">
+                          <input
+                            type="checkbox"
+                            checked={updateMessageText}
+                            onChange={(e) => setUpdateMessageText(e.target.checked)}
+                            className="w-4 h-4 text-blue-500 border-white/20 rounded focus:ring-2 focus:ring-blue-500/50 bg-white/5"
+                          />
+                          <span className="text-sm">
+                            Also update iMessage text to match the new audio content
+                          </span>
+                        </label>
 
                         <button
                           onClick={handleRegenerateAudio}
