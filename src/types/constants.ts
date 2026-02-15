@@ -245,6 +245,10 @@ export const CompositionProps = z.object({
       recipientName: z.string().default("Alice"),
       /** Recipient name font size in pixels (header bar). */
       recipientNameSizePx: z.number().min(10).max(80).default(32),
+      /** Message bubble text font size in pixels. */
+      messageTextSizePx: z.number().min(10).max(80).default(39),
+      /** iMessage overlay width as percentage of video width (40–100). */
+      overlayWidthPercent: z.number().min(40).max(100).default(70),
       conversationStartTime: z.string().optional(),
       deviceTime: z.string().default("9:41"),
       wifi: z.boolean().default(true),
@@ -565,6 +569,8 @@ export const defaultMyCompProps: CompositionPropsType = {
     conversationStartTime: undefined,
     recipientName: "Sophia",
     recipientNameSizePx: 32,
+    messageTextSizePx: 39,
+    overlayWidthPercent: 70,
     showStatusBar: false,
     chatShadowPreset: "medium",
     recipientAvatars: {},
