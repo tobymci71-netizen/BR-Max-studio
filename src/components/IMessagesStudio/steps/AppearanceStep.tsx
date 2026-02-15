@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Input } from "../../Input";
 import { Switch } from "../../Switch";
 import { Select } from "../../Select";
@@ -55,6 +55,9 @@ export function AppearanceStep() {
   );
   const [introDurationDraft, setIntroDurationDraft] = useState(
     String(formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs ?? 600),
+  );
+  const [recipientNameSizeDraft, setRecipientNameSizeDraft] = useState(
+    String(formValues.CHAT_SETTINGS.recipientNameSizePx ?? 32),
   );
   // const [outroDurationDraft, setOutroDurationDraft] = useState(
   //   String(formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs ?? 600),
@@ -172,6 +175,9 @@ export function AppearanceStep() {
     setIntroDurationDraft(
       String(formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs ?? 600),
     );
+    setRecipientNameSizeDraft(
+      String(formValues.CHAT_SETTINGS.recipientNameSizePx ?? 32),
+    );
     // setOutroDurationDraft(
     //   String(formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs ?? 600),
     // );
@@ -184,6 +190,7 @@ export function AppearanceStep() {
     formValues.CHAT_SETTINGS.battery,
     formValues.CHAT_SETTINGS.unreadMessages,
     formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs,
+    formValues.CHAT_SETTINGS.recipientNameSizePx,
     formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs,
   ]);
 
@@ -234,6 +241,14 @@ export function AppearanceStep() {
     const clamped = Math.max(0, normalized);
     updateChatSettings("unreadMessages", clamped);
     setUnreadDraft(String(clamped));
+  };
+
+  const commitRecipientNameSize = () => {
+    const parsed = Number(recipientNameSizeDraft);
+    const normalized = Number.isNaN(parsed) ? 32 : parsed;
+    const clamped = Math.min(80, Math.max(10, normalized));
+    updateChatSettings("recipientNameSizePx", clamped);
+    setRecipientNameSizeDraft(String(clamped));
   };
 
   const commitIntroDuration = () => {
@@ -526,6 +541,26 @@ export function AppearanceStep() {
               onBlur={commitUnread}
               placeholder="999"
               hint="Badge count on chat header"
+            />
+
+            <Input
+              label="Recipient name size (px)"
+              type="number"
+              min={10}
+              max={80}
+              value={recipientNameSizeDraft}
+              onChange={(e) => setRecipientNameSizeDraft(e.target.value)}
+              onBlur={commitRecipientNameSize}
+              placeholder="32"
+              hint="Header name text size in pixels"
+              errorMessage={
+                (() => {
+                  const n = Number(recipientNameSizeDraft);
+                  return !Number.isNaN(n) && n > 80
+                    ? "Must be 80 or less"
+                    : undefined;
+                })()
+              }
             />
           </div>
         </div>

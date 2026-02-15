@@ -243,6 +243,8 @@ export const CompositionProps = z.object({
       unreadMessages: z.number().nonnegative().default(999),
       showTopBarFirstOnly: z.boolean().default(true),
       recipientName: z.string().default("Alice"),
+      /** Recipient name font size in pixels (header bar). */
+      recipientNameSizePx: z.number().min(10).max(80).default(32),
       conversationStartTime: z.string().optional(),
       deviceTime: z.string().default("9:41"),
       wifi: z.boolean().default(true),
@@ -562,6 +564,7 @@ export const defaultMyCompProps: CompositionPropsType = {
     showTopBarFirstOnly: true,
     conversationStartTime: undefined,
     recipientName: "Sophia",
+    recipientNameSizePx: 32,
     showStatusBar: false,
     chatShadowPreset: "medium",
     recipientAvatars: {},

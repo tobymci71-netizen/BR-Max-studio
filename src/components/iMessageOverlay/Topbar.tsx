@@ -17,10 +17,16 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
     theme,
     showStatusBar,
     recipientAvatars,
+    recipientNameSizePx = 32,
   } = CHAT_SETTINGS;
 
   const colors = THEME_MAP[theme];
   const fontScale = IMESSAGE_FONT_SIZE_PERCENT / 100;
+
+  // Single control for video icon (container + SVG)
+  const videoIconSize = 30 * fontScale;
+  // Single control for back (chevron) icon
+  const backIconSize = 32 * fontScale;
 
   const normalizedRecipientName = (recipientName ?? "").trim();
   const avatarConfig =
@@ -173,7 +179,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
               color: colors.icon,
             }}
           >
-            <ChevronLeft size={28 * fontScale} />
+            <ChevronLeft size={backIconSize} />
           </div>
           <span
             style={{
@@ -209,8 +215,8 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
           {/* Profile Circle */}
           <div
             style={{
-              width: 55 * fontScale,
-              height: 55 * fontScale,
+              width: 50 * fontScale,
+              height: 50 * fontScale,
               borderRadius: "50%",
               backgroundColor: "rgb(137,141,152)",
               display: "flex",
@@ -225,8 +231,8 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
               <Image
                 src={avatarConfig.imageUrl}
                 alt={recipientName || "Recipient avatar"}
-                width={55 * fontScale}
-                height={55 * fontScale}
+                width={50 * fontScale}
+                height={50 * fontScale}
                 unoptimized
                 style={{
                   width: "100%",
@@ -251,15 +257,15 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 48,
-            height: 48,
+            width: videoIconSize,
+            height: videoIconSize,
             color: colors.icon,
           }}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width={40 * fontScale}
-            height={40 * fontScale}
+            width={videoIconSize}
+            height={videoIconSize}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -293,7 +299,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
         >
           <span
             style={{
-              fontSize: "0.7em",
+              fontSize: `${recipientNameSizePx}px`,
               color: colors.textPrimary,
               fontWeight: 500,
               textAlign: "center",
@@ -310,7 +316,7 @@ export const Topbar: React.FC<Props> = (CHAT_SETTINGS) => {
               transform: "translateY(-50%)",
               opacity: 0.6,
             }}
-            size={16 * fontScale}
+            size={recipientNameSizePx}
             color={colors.textSecondary}
           />
         </div>
