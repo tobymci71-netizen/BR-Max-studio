@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Input } from "../../Input";
 import { Switch } from "../../Switch";
 import { Select } from "../../Select";
@@ -55,6 +55,15 @@ export function AppearanceStep() {
   );
   const [introDurationDraft, setIntroDurationDraft] = useState(
     String(formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs ?? 600),
+  );
+  const [recipientNameSizeDraft, setRecipientNameSizeDraft] = useState(
+    String(formValues.CHAT_SETTINGS.recipientNameSizePx ?? 32),
+  );
+  const [messageTextSizeDraft, setMessageTextSizeDraft] = useState(
+    String(formValues.CHAT_SETTINGS.messageTextSizePx ?? 39),
+  );
+  const [overlayWidthDraft, setOverlayWidthDraft] = useState(
+    String(formValues.CHAT_SETTINGS.overlayWidthPercent ?? 70),
   );
   // const [outroDurationDraft, setOutroDurationDraft] = useState(
   //   String(formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs ?? 600),
@@ -172,6 +181,15 @@ export function AppearanceStep() {
     setIntroDurationDraft(
       String(formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs ?? 600),
     );
+    setRecipientNameSizeDraft(
+      String(formValues.CHAT_SETTINGS.recipientNameSizePx ?? 32),
+    );
+    setMessageTextSizeDraft(
+      String(formValues.CHAT_SETTINGS.messageTextSizePx ?? 39),
+    );
+    setOverlayWidthDraft(
+      String(formValues.CHAT_SETTINGS.overlayWidthPercent ?? 70),
+    );
     // setOutroDurationDraft(
     //   String(formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs ?? 600),
     // );
@@ -184,6 +202,9 @@ export function AppearanceStep() {
     formValues.CHAT_SETTINGS.battery,
     formValues.CHAT_SETTINGS.unreadMessages,
     formValues.CHAT_SETTINGS.chatIntroAnimationDurationMs,
+    formValues.CHAT_SETTINGS.recipientNameSizePx,
+    formValues.CHAT_SETTINGS.messageTextSizePx,
+    formValues.CHAT_SETTINGS.overlayWidthPercent,
     formValues.CHAT_SETTINGS.chatOutroAnimationDurationMs,
   ]);
 
@@ -234,6 +255,30 @@ export function AppearanceStep() {
     const clamped = Math.max(0, normalized);
     updateChatSettings("unreadMessages", clamped);
     setUnreadDraft(String(clamped));
+  };
+
+  const commitRecipientNameSize = () => {
+    const parsed = Number(recipientNameSizeDraft);
+    const normalized = Number.isNaN(parsed) ? 32 : parsed;
+    const clamped = Math.min(80, Math.max(10, normalized));
+    updateChatSettings("recipientNameSizePx", clamped);
+    setRecipientNameSizeDraft(String(clamped));
+  };
+
+  const commitMessageTextSize = () => {
+    const parsed = Number(messageTextSizeDraft);
+    const normalized = Number.isNaN(parsed) ? 39 : parsed;
+    const clamped = Math.min(80, Math.max(10, normalized));
+    updateChatSettings("messageTextSizePx", clamped);
+    setMessageTextSizeDraft(String(clamped));
+  };
+
+  const commitOverlayWidth = () => {
+    const parsed = Number(overlayWidthDraft);
+    const normalized = Number.isNaN(parsed) ? 70 : parsed;
+    const clamped = Math.min(100, Math.max(40, normalized));
+    updateChatSettings("overlayWidthPercent", clamped);
+    setOverlayWidthDraft(String(clamped));
   };
 
   const commitIntroDuration = () => {
@@ -477,6 +522,18 @@ export function AppearanceStep() {
             }}
           >
             <Input
+              label="Overlay width (%)"
+              type="number"
+              min={40}
+              max={100}
+              value={overlayWidthDraft}
+              onChange={(e) => setOverlayWidthDraft(e.target.value)}
+              onBlur={commitOverlayWidth}
+              placeholder="70"
+              hint="iMessage panel width as % of video"
+            />
+
+            <Input
               label="Top Gap (px)"
               type="number"
               min={0}
@@ -526,6 +583,46 @@ export function AppearanceStep() {
               onBlur={commitUnread}
               placeholder="999"
               hint="Badge count on chat header"
+            />
+
+            <Input
+              label="Recipient name size (px)"
+              type="number"
+              min={10}
+              max={80}
+              value={recipientNameSizeDraft}
+              onChange={(e) => setRecipientNameSizeDraft(e.target.value)}
+              onBlur={commitRecipientNameSize}
+              placeholder="32"
+              hint="Header name text size in pixels"
+              errorMessage={
+                (() => {
+                  const n = Number(recipientNameSizeDraft);
+                  return !Number.isNaN(n) && n > 80
+                    ? "Must be 80 or less"
+                    : undefined;
+                })()
+              }
+            />
+
+            <Input
+              label="Message text size (px)"
+              type="number"
+              min={10}
+              max={80}
+              value={messageTextSizeDraft}
+              onChange={(e) => setMessageTextSizeDraft(e.target.value)}
+              onBlur={commitMessageTextSize}
+              placeholder="39"
+              hint="Text inside iMessage bubbles"
+              errorMessage={
+                (() => {
+                  const n = Number(messageTextSizeDraft);
+                  return !Number.isNaN(n) && n > 80
+                    ? "Must be 80 or less"
+                    : undefined;
+                })()
+              }
             />
           </div>
         </div>

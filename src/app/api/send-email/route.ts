@@ -77,15 +77,6 @@ export async function POST(request: Request) {
       minimumFractionDigits: 2,
     }).format(amount);
 
-    // 4. Calculate Refund Date (Your Logic Restored)
-    const refundDate = new Date();
-    refundDate.setDate(refundDate.getDate() + 3);
-    const formattedRefundDate = refundDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-
     const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -160,9 +151,6 @@ export async function POST(request: Request) {
           <!-- Footer -->
           <tr>
             <td style="background-color: #fafafa; padding: 32px 40px; border-top: 1px solid #f4f4f5;">
-              <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 20px; color: #71717a; text-align: center;">
-                <strong>Refund Policy:</strong> Refunds are only allowed until <strong>${formattedRefundDate}</strong>. After this date, all sales are final.
-              </p>
               <p style="margin: 0 0 16px 0; font-size: 12px; line-height: 20px; color: #a1a1aa; text-align: center;">
                 If you have any questions, please contact us on Discord with your Transaction ID.
                 <br/><br/>
@@ -171,7 +159,6 @@ export async function POST(request: Request) {
               <p style="margin: 0; font-size: 11px; line-height: 18px; color: #a1a1aa; text-align: center;">
                 By purchasing our service you agree to our 
                 <a href="https://www.brmax.xyz/terms" style="color: #71717a; text-decoration: underline;">Terms & Conditions</a> and 
-                <a href="https://www.brmax.xyz/refund" style="color: #71717a; text-decoration: underline;">Refund Policy</a>.
               </p>
             </td>
           </tr>
@@ -196,13 +183,11 @@ RECEIPT
 Method: ${formattedProvider}
 Transaction ID: ${emailData.transactionId}
 Date: ${emailData.timestamp}
-Refund Policy: Refunds available until ${formattedRefundDate}
 
 If you have questions, please contact us on Discord.
 
-By purchasing our service you agree to our Terms and Refund Policy:
+By purchasing our service you agree to our Terms and conditions:
 Terms: https://www.brmax.xyz/terms
-Refund: https://www.brmax.xyz/refund
 
 
 © ${new Date().getFullYear()} BR Max

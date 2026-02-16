@@ -129,18 +129,24 @@ export async function POST(request: Request) {
       backgroundVideoUrl = `https://${bucket}.s3.${region}.amazonaws.com/background_video.mp4`;
     }
 
-    // Rebuild props with forceRecalc to ensure timing is recalculated based on updated audio durations
-    // This is critical when audio has been regenerated with different durations
     const propsWithBackground = {
       ...props,
       backgroundVideo: backgroundVideoUrl,
     };
 
-    const { previewProps: rebuiltProps } = buildPreviewProps(propsWithBackground, {
-      forceMessageTiming: true,
-    });
+    // Saved composition_props have messages already merged (no "> Insert monetization <" command).
+    // Re-running buildPreviewProps would set monetizationEnabled=false and durationInFrames=0, so
+    // the monetization segment would not render. Preserve pre-computed monetization when present.
+    const hasPrecomputedMonetization =
+      Boolean(props?.monetization?.enabled) &&
+      props.monetization.startFrame != null &&
+      (props.monetization.durationInFrames ?? 0) > 0;
 
-    const inputProps = rebuiltProps;
+    const inputProps = hasPrecomputedMonetization
+      ? propsWithBackground
+      : buildPreviewProps(propsWithBackground, {
+          forceMessageTiming: true,
+        }).previewProps;
 
     console.log(`🚀 Starting Lambda render for job ${jobId} (stage: video)`);
 

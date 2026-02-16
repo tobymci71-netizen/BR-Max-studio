@@ -102,7 +102,8 @@ const MessageBubble: React.FC<{
   isLastInGroup: boolean;
   enableAnimation: boolean;
   nextMessageAppearAt?: number;
-}> = ({ msg, frame, isMe, colors, isLastInGroup, enableAnimation, nextMessageAppearAt }) => {
+  messageTextSizePx?: number;
+}> = ({ msg, frame, isMe, colors, isLastInGroup, enableAnimation, nextMessageAppearAt, messageTextSizePx }) => {
   let fade = 1;
   let y = 0;
   const arrowOffset = Math.sin(frame / 10) * 4;
@@ -164,12 +165,12 @@ const MessageBubble: React.FC<{
             color: isMe ? colors.textMe : colors.textThem,
             padding: isImageMessage ? "4px" : "9px 20px",
             borderRadius: isImageMessage ? 16 : 32,
-            fontSize: "1.05em",
+            fontSize: messageTextSizePx != null ? `${messageTextSizePx}px` : "39px",
             lineHeight: "1.3",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             position: "relative",
-            fontWeight: 300,
+            fontWeight: 400,
             overflow: "visible",
           }}
         >
@@ -741,7 +742,7 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
 
                 <div
                   style={{
-                    width: "70%",
+                    width: `${sectionSettings.overlayWidthPercent ?? 70}%`,
                     height: VIDEO_HEIGHT - marginTop - marginBottom,
                     flexShrink: 0,
                   }}
@@ -866,6 +867,7 @@ export const IMessageOverlay: React.FC<IMessageOverlayProps> = ({
                                     isLastInGroup={isLastInGroup}
                                     enableAnimation={settings.textAnimation}
                                     nextMessageAppearAt={nextMessageAppearAt}
+                                    messageTextSizePx={sectionSettings.messageTextSizePx}
                                   />
                                 );
                               })}

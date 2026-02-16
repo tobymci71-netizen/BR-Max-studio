@@ -1678,7 +1678,7 @@ export function ScriptStep() {
               }}
             >
               <CircleUser size={18} style={{ flexShrink: 0 }} />
-              <span>Profile pictures for top bar</span>
+              <span>Customize Profile pictures</span>
               {(() => {
                 const avatars = formValues.CHAT_SETTINGS.recipientAvatars ?? {};
                 const withCustom = tooltipRecipientNames.filter(
