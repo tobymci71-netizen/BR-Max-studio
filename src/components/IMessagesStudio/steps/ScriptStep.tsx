@@ -210,7 +210,7 @@ function parseScriptToRows(scriptText: string): SimpleRow[] {
       const toneMatch = content.match(/^\[([^\]]+)\]\s*/);
       if (toneMatch) {
         const potentialTone = toneMatch[1];
-        if (TONE_OPTIONS.includes(potentialTone as any)) {
+        if (TONE_OPTIONS.includes(potentialTone as (typeof TONE_OPTIONS)[number])) {
           tone = potentialTone;
           // Remove the tone bracket from content before processing
           content = content.replace(/^\[[^\]]+\]\s*/, "");
