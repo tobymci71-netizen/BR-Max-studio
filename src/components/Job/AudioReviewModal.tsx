@@ -5,6 +5,7 @@ import { Loader2, Upload, Video, Play, Pause, Search, X } from "lucide-react";
 import { Modal } from "../Modal";
 import { generateAudioFile } from "@/helpers/audioGeneration";
 import { DEFAULT_VOICE_SETTINGS } from "@/types/constants";
+import { removeSilenceFromMp3 } from "@/helpers/removeSilenceMp3";
 
 export type AudioReviewItem = {
   id: string;
@@ -290,24 +291,64 @@ export function AudioReviewModal({ jobId, onClose }: AudioReviewModalProps) {
       setReplacingId(selectedId);
       setError(null);
 
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(reader.error);
-        reader.onload = () => {
-          const result = reader.result;
-          if (typeof result === "string") {
-            const i = result.indexOf(",");
-            resolve(i >= 0 ? result.slice(i + 1) : result);
-          } else reject(new Error("Unexpected file reader result"));
-        };
-        reader.readAsDataURL(file);
-      });
-
+      let base64: string;
       let duration: number | undefined;
-      try {
-        duration = await getAudioDurationFromFile(file);
-      } catch {
-        duration = undefined;
+
+      // When Silence Remover / "Snappy" mode is enabled, trim silence from
+      // manually uploaded audio before sending it to the server / S3.
+      if (voiceStyle === "snappy") {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(arrayBuffer);
+          const trimmed = await removeSilenceFromMp3(bytes, {
+            thresholdDb: DEFAULT_VOICE_SETTINGS.silenceThresholdDb,
+            minSilenceMs: DEFAULT_VOICE_SETTINGS.silenceMinSilenceMs,
+            trimMode: silenceTrimmingType,
+          });
+          base64 = trimmed.base64Data;
+          duration = trimmed.duration;
+        } catch (trimErr) {
+          console.error("Silence trimming failed, falling back to raw upload:", trimErr);
+          // Fallback to raw file if trimming fails for any reason
+          const rawBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(reader.error);
+            reader.onload = () => {
+              const result = reader.result;
+              if (typeof result === "string") {
+                const i = result.indexOf(",");
+                resolve(i >= 0 ? result.slice(i + 1) : result);
+              } else reject(new Error("Unexpected file reader result"));
+            };
+            reader.readAsDataURL(file);
+          });
+          base64 = rawBase64;
+          try {
+            duration = await getAudioDurationFromFile(file);
+          } catch {
+            duration = undefined;
+          }
+        }
+      } else {
+        // Natural mode: keep the audio as-is (no trimming), but still compute duration
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(reader.error);
+          reader.onload = () => {
+            const result = reader.result;
+            if (typeof result === "string") {
+              const i = result.indexOf(",");
+              resolve(i >= 0 ? result.slice(i + 1) : result);
+            } else reject(new Error("Unexpected file reader result"));
+          };
+          reader.readAsDataURL(file);
+        });
+
+        try {
+          duration = await getAudioDurationFromFile(file);
+        } catch {
+          duration = undefined;
+        }
       }
 
       const res = await fetch("/api/render/replace-audio", {
