@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Input } from "../../Input";
 import { Modal } from "../../Modal";
@@ -26,9 +27,11 @@ import {
   ChevronDown,
   Eye,
   CircleUser,
+  X,
+  Search,
 } from "lucide-react";
 import { useStudioForm } from "../StudioProvider";
-import { useScriptParser } from "../hooks/useScriptParser";
+import { useScriptParser, removeBracketedWords } from "../hooks/useScriptParser";
 import { CONVERSATION_COMMAND_REGEX } from "../../../helpers/messageCommands";
 import {
   Tooltip,
@@ -86,6 +89,42 @@ Now convert the script below EXACTLY according to the above rules:
 `;
 const imageUploadsCache: Record<string, File | null> = {};
 
+// Tone options
+const TONE_OPTIONS = [
+  "Annoyed",
+  "Confused",
+  "Crying",
+  "Curious",
+  "Disappointed",
+  "Embarrassed",
+  "Excited",
+  "Flirty",
+  "Frustrated",
+  "Giggling",
+  "Grateful",
+  "Happy",
+  "Heartbroken",
+  "Hesitant",
+  "Hopeful",
+  "Jealous",
+  "Laughing",
+  "Mad",
+  "Nervous",
+  "Relieved",
+  "Romantic",
+  "Sad",
+  "Soft",
+  "Sarcastic",
+  "Shocked",
+  "Shouted",
+  "Sighing",
+  "Sleepy",
+  "Stressed",
+  "Tired",
+  "Upset",
+  "Worried"
+] as const;
+
 // Simple view types and helpers
 type SimpleRow = {
   id: string;
@@ -93,6 +132,7 @@ type SimpleRow = {
   type: "text" | "command" | "image";
   content: string;
   imageName?: string;
+  tone?: string;
 };
 
 function generateRowId() {
@@ -147,7 +187,7 @@ function parseScriptToRows(scriptText: string): SimpleRow[] {
         rows.push(currentRow);
       }
       const side = match[1].toLowerCase() as "me" | "them";
-      const content = match[2] || "";
+      let content = match[2] || "";
 
       // Check for image syntax: {image: name} or > image name <
       const imageMatch = content.match(/\{image:\s*(.+?)\s*\}/) ||
@@ -164,15 +204,29 @@ function parseScriptToRows(scriptText: string): SimpleRow[] {
         continue;
       }
 
+      // Extract tone from [Tone] format (before removing brackets)
+      // Look for a valid tone at the start of the content
+      let tone: string | undefined;
+      const toneMatch = content.match(/^\[([^\]]+)\]\s*/);
+      if (toneMatch) {
+        const potentialTone = toneMatch[1];
+        if (TONE_OPTIONS.includes(potentialTone as any)) {
+          tone = potentialTone;
+          // Remove the tone bracket from content before processing
+          content = content.replace(/^\[[^\]]+\]\s*/, "");
+        }
+      }
+
       currentRow = {
         id: generateRowId(),
         side,
         type: "text",
-        content,
+        content: removeBracketedWords(content),
+        tone,
       };
     } else if (currentRow) {
       // Continuation of previous message
-      currentRow.content += "\n" + trimmed;
+      currentRow.content += "\n" + removeBracketedWords(trimmed);
     }
   }
 
@@ -201,7 +255,8 @@ function rowsToScriptText(rows: SimpleRow[]): string {
       }
       // Text message
       const prefix = row.side === "me" ? "me:" : "them:";
-      return `${prefix} ${row.content}`;
+      const tonePart = row.tone ? `[${row.tone}] ` : "";
+      return `${prefix} ${tonePart}${row.content}`;
     })
     .join("\n");
 }
@@ -212,6 +267,443 @@ function getInitialScriptText() {
     if (saved !== null) return saved;
   }
   return DEFAULT_SCRIPT_TEMPLATE;
+}
+
+// TypeSelector Component
+function TypeSelector({
+  value,
+  onChange,
+  onBlur,
+}: {
+  value: "text" | "command" | "image";
+  onChange: (type: "text" | "command" | "image") => void;
+  onBlur?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const typeOptions: Array<{ value: "text" | "command" | "image"; label: string }> = [
+    { value: "text", label: "Text" },
+    { value: "command", label: "Command" },
+    { value: "image", label: "Image" },
+  ];
+
+  const currentLabel = typeOptions.find((opt) => opt.value === value)?.label || "Text";
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownRect({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    } else {
+      setDropdownRect(null);
+    }
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest("[data-type-dropdown]")
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const handleSelect = (type: "text" | "command" | "image") => {
+    onChange(type);
+    setIsOpen(false);
+    onBlur?.();
+  };
+
+  const dropdownContent =
+    isOpen &&
+    dropdownRect &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        data-type-dropdown
+        style={{
+          position: "fixed",
+          top: dropdownRect.top,
+          left: dropdownRect.left,
+          width: dropdownRect.width,
+          minWidth: 90,
+          background: "rgba(0,0,0,0.95)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          borderRadius: 8,
+          zIndex: 9999,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+        }}
+      >
+        <div style={{ padding: 4 }}>
+          {typeOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleSelect(option.value)}
+              style={{
+                width: "100%",
+                padding: "8px 10px",
+                borderRadius: 6,
+                border: "none",
+                background:
+                  value === option.value
+                    ? "rgba(255,255,255,0.15)"
+                    : "transparent",
+                color: "#fff",
+                fontSize: 12,
+                textAlign: "left",
+                cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                if (value !== option.value) {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (value !== option.value) {
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>,
+      document.body
+    );
+
+  return (
+    <div style={{ position: "relative", minWidth: 90 }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        onBlur={onBlur}
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,0.15)",
+          background: "rgba(0,0,0,0.4)",
+          color: "#fff",
+          fontSize: 12,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6,
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(0,0,0,0.5)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "rgba(0,0,0,0.4)";
+        }}
+      >
+        <span style={{ flex: 1, textAlign: "left" }}>{currentLabel}</span>
+        <ChevronDown size={12} style={{ opacity: 0.7 }} />
+      </button>
+      {dropdownContent}
+    </div>
+  );
+}
+
+// ToneSelector Component
+function ToneSelector({
+  value,
+  onChange,
+  onBlur,
+}: {
+  value?: string;
+  onChange: (tone: string | undefined) => void;
+  onBlur?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredTones = useMemo(() => {
+    if (!searchQuery.trim()) return TONE_OPTIONS;
+    const query = searchQuery.toLowerCase();
+    return TONE_OPTIONS.filter((tone) =>
+      tone.toLowerCase().includes(query)
+    );
+  }, [searchQuery]);
+
+  // Update dropdown position when opening
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownRect({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+      });
+    } else {
+      setDropdownRect(null);
+    }
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest("[data-tone-dropdown]")
+      ) {
+        setIsOpen(false);
+        setSearchQuery("");
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  // Focus input when opening
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [isOpen]);
+
+  const handleSelect = (tone: string) => {
+    onChange(tone);
+    setIsOpen(false);
+    setSearchQuery("");
+    onBlur?.();
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(undefined);
+    setIsOpen(false);
+    setSearchQuery("");
+    onBlur?.();
+  };
+
+  const dropdownContent =
+    isOpen &&
+    dropdownRect &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        data-tone-dropdown
+        style={{
+          position: "fixed",
+          top: dropdownRect.top,
+          left: dropdownRect.left,
+          width: Math.max(dropdownRect.width, 180),
+          background: "rgba(0,0,0,0.95)",
+          border: "1px solid rgba(167,139,250,0.4)",
+          borderRadius: 8,
+          zIndex: 9999,
+          maxHeight: 300,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+        }}
+      >
+        {/* Search input */}
+        <div
+          style={{
+            padding: 8,
+            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            position: "sticky",
+            top: 0,
+            background: "rgba(0,0,0,0.95)",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <Search
+              size={14}
+              style={{
+                position: "absolute",
+                left: 10,
+                color: "rgba(255,255,255,0.5)",
+                pointerEvents: "none",
+              }}
+            />
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tone..."
+              style={{
+                width: "100%",
+                padding: "6px 10px 6px 32px",
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#fff",
+                fontSize: 12,
+                outline: "none",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setIsOpen(false);
+                  setSearchQuery("");
+                } else if (e.key === "Enter" && filteredTones.length > 0) {
+                  handleSelect(filteredTones[0]);
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Options list */}
+        <div
+          style={{
+            maxHeight: 240,
+            overflowY: "auto",
+            padding: 4,
+          }}
+        >
+          {filteredTones.length === 0 ? (
+            <div
+              style={{
+                padding: "12px 8px",
+                textAlign: "center",
+                color: "rgba(255,255,255,0.5)",
+                fontSize: 12,
+              }}
+            >
+              No tones found
+            </div>
+          ) : (
+            filteredTones.map((tone) => (
+              <button
+                key={tone}
+                type="button"
+                onClick={() => handleSelect(tone)}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  background:
+                    value === tone
+                      ? "rgba(167,139,250,0.3)"
+                      : "transparent",
+                  color: "#fff",
+                  fontSize: 12,
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  if (value !== tone) {
+                    e.currentTarget.style.background =
+                      "rgba(255,255,255,0.1)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (value !== tone) {
+                    e.currentTarget.style.background = "transparent";
+                  }
+                }}
+              >
+                {tone}
+              </button>
+            ))
+          )}
+        </div>
+      </div>,
+      document.body
+    );
+
+  return (
+    <div style={{ position: "relative", minWidth: 140 }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        onBlur={onBlur}
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid rgba(167,139,250,0.4)",
+          background: value
+            ? "rgba(167,139,250,0.2)"
+            : "rgba(167,139,250,0.1)",
+          color: "#fff",
+          fontSize: 12,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6,
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = value
+            ? "rgba(167,139,250,0.3)"
+            : "rgba(167,139,250,0.15)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = value
+            ? "rgba(167,139,250,0.2)"
+            : "rgba(167,139,250,0.1)";
+        }}
+      >
+        <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {value || "Tone"}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          {value && (
+            <X
+              size={12}
+              onClick={handleClear}
+              style={{ cursor: "pointer", opacity: 0.7 }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "0.7";
+              }}
+            />
+          )}
+          <ChevronDown size={12} style={{ opacity: 0.7 }} />
+        </div>
+      </button>
+      {dropdownContent}
+    </div>
+  );
 }
 
 export function ScriptStep() {
@@ -814,6 +1306,16 @@ export function ScriptStep() {
     []
   );
 
+  const handleChangeTone = useCallback(
+    (id: string, tone: string | undefined) => {
+      // Update local state only (no parsing)
+      setSimpleRows((prev) =>
+        prev.map((row) => (row.id === id ? { ...row, tone } : row))
+      );
+    },
+    []
+  );
+
   const handleContentBlur = useCallback(() => {
     // On blur, sync to scriptText and parse
     const newScriptText = rowsToScriptText(simpleRows);
@@ -1136,7 +1638,7 @@ export function ScriptStep() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "100px 1fr auto",
+                  gridTemplateColumns: "100px 140px 1fr auto",
                   gap: 12,
                   padding: "12px 16px",
                   background: "rgba(255,255,255,0.05)",
@@ -1147,6 +1649,31 @@ export function ScriptStep() {
                 }}
               >
                 <div>Character</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>Tone</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle
+                          size={14}
+                          style={{
+                            cursor: "help",
+                            opacity: 0.6,
+                            color: "rgba(255,255,255,0.7)",
+                          }}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" style={{ maxWidth: 280 }}>
+                        <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                          <strong>What are Tones?</strong>
+                          <br />
+                          <br />
+                          Tones define the emotion or mood of your message. Select a tone like "Happy", "Sarcastic", or "Excited" to convey how the message should be delivered. This helps set the context for voice generation and adds emotional depth to your conversation.
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <div>Content</div>
                 <div style={{ width: 70, textAlign: "center" }}>Actions</div>
               </div>
@@ -1179,7 +1706,7 @@ export function ScriptStep() {
                     key={row.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "100px 1fr auto",
+                      gridTemplateColumns: "100px 140px 1fr auto",
                       gap: 12,
                       padding: "12px 16px",
                       borderBottom:
@@ -1248,29 +1775,36 @@ export function ScriptStep() {
                       )}
                     </button>
 
+                    {/* Tone Selector */}
+                    <div>
+                      {row.type === "text" ? (
+                        <ToneSelector
+                          value={row.tone}
+                          onChange={(tone) => handleChangeTone(row.id, tone)}
+                          onBlur={handleContentBlur}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            fontSize: 12,
+                            color: "rgba(255,255,255,0.4)",
+                            textAlign: "center",
+                          }}
+                        >
+                          -
+                        </div>
+                      )}
+                    </div>
+
                     {/* Content Area */}
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       {/* Type Dropdown */}
-                      <select
+                      <TypeSelector
                         value={row.type}
-                        onChange={(e) =>
-                          handleChangeType(row.id, e.target.value as "text" | "command" | "image")
-                        }
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          background: "rgba(0,0,0,0.4)",
-                          color: "#fff",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          minWidth: 90,
-                        }}
-                      >
-                        <option value="text">Text</option>
-                        <option value="command">Command</option>
-                        <option value="image">Image</option>
-                      </select>
+                        onChange={(type) => handleChangeType(row.id, type)}
+                        onBlur={handleContentBlur}
+                      />
 
                       {/* Content Input - changes based on type */}
                       {row.type === "image" ? (

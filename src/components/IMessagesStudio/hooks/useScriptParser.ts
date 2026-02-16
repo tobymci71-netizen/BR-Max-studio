@@ -8,6 +8,19 @@ import {
 } from "@/types/constants";
 import { useCallback } from "react";
 
+/**
+ * Removes bracketed words like [Shouted] from text
+ * @param text - The text to clean
+ * @returns The text with bracketed words removed
+ */
+export function removeBracketedWords(text: string): string {
+  // Remove patterns like [Shouted], [Whispered], etc. and clean up extra spaces
+  return text
+    .replace(/\[[^\]]+\]/g, "") // Remove anything in square brackets
+    .replace(/\s+/g, " ") // Replace multiple spaces with single space
+    .trim(); // Remove leading/trailing whitespace
+}
+
 export function parseScriptText(rawText: string) {
   const lines = rawText.split("\n");
   const messages: Message[] = [];
@@ -94,7 +107,7 @@ export function parseScriptText(rawText: string) {
       }
 
       messages.push({
-        text: text.trim(),
+        text: removeBracketedWords(text.trim()),
         sender: isMe ? "me" : "them",
         speaker: resolvedSpeaker,
         type: "text",
@@ -106,7 +119,7 @@ export function parseScriptText(rawText: string) {
     } else {
       // Continuation of previous message
       if (messages.length > 0) {
-        messages[messages.length - 1].text += "\n" + trimmed;
+        messages[messages.length - 1].text += "\n" + removeBracketedWords(trimmed);
       }
     }
   }
