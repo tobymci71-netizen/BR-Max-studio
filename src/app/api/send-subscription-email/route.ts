@@ -197,7 +197,6 @@ function generateStartedEmail(data: SubscriptionEmailData) {
       </p>
       <p style="margin: 10px 0;">
         <a href="${process.env.NEXT_PUBLIC_BASE_URL}/terms">Terms & Conditions</a> • 
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/refund">Refund Policy</a>
       </p>
       <p style="margin: 10px 0; color: #9ca3af;">
         © ${new Date().getFullYear()} BR Max. All rights reserved.
@@ -235,7 +234,6 @@ Note: Your subscription will automatically renew each month with ${data.tokens?.
 Questions? Contact us on Discord: https://discord.gg/h4chRAbjEZ
 
 Terms: ${process.env.NEXT_PUBLIC_BASE_URL}/terms
-Refund Policy: ${process.env.NEXT_PUBLIC_BASE_URL}/refund
 
 © ${new Date().getFullYear()} BR Max
   `;
@@ -326,7 +324,6 @@ function generateRenewedEmail(data: SubscriptionEmailData) {
       </p>
       <p style="margin: 10px 0;">
         <a href="${process.env.NEXT_PUBLIC_BASE_URL}/terms">Terms & Conditions</a> • 
-        <a href="${process.env.NEXT_PUBLIC_BASE_URL}/refund">Refund Policy</a>
       </p>
       <p style="margin: 10px 0; color: #9ca3af;">
         © ${new Date().getFullYear()} BR Max. All rights reserved.
