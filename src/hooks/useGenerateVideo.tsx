@@ -545,7 +545,16 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
 
         const chatTasks: AudioTask[] = previewProps.messages
           .map((msg, index) => ({ msg, index }))
-          .filter(({ msg }) => msg.type !== "promotion" && msg.type !== "command")
+          .filter(({ msg }) => {
+            // Skip promotion messages
+            if (msg.type === "promotion") return false;
+            // Skip explicit command messages
+            if (msg.type === "command") return false;
+            // Also guard against any command-like lines that may not have type set correctly
+            const rawText = (msg.text ?? "").trim();
+            if (rawText.startsWith(">") && rawText.endsWith("<")) return false;
+            return true;
+          })
           .map(({ msg, index }) => {
             const fallbackSpeaker = msg.sender === "me" ? "Me" : "Them";
             const speakerName =
@@ -904,6 +913,71 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                 reply_audio_duration: audioUrl.duration,
               };
             }
+          }
+        }
+
+        // ========== STEP 3.5: Upload iMessage images to S3 & replace data URLs ==========
+        const uploadedImageUrls: Record<string, string> = {};
+
+        for (let i = 0; i < previewProps.messages.length; i += 1) {
+          const msg = previewProps.messages[i];
+
+          if (msg.type !== "image" || typeof msg.imageUrl !== "string") {
+            continue;
+          }
+
+          const trimmedUrl = msg.imageUrl.trim();
+          if (!trimmedUrl.startsWith("data:")) {
+            continue;
+          }
+
+          const dedupeKey = (msg.imageName ?? "").trim() || trimmedUrl;
+          if (dedupeKey && uploadedImageUrls[dedupeKey]) {
+            msg.imageUrl = uploadedImageUrls[dedupeKey];
+            continue;
+          }
+
+          const match = trimmedUrl.match(/^data:(.+);base64,(.+)$/);
+          if (!match) {
+            console.warn("Skipping invalid image data URL for message image", {
+              imageName: msg.imageName,
+              index: i,
+            });
+            continue;
+          }
+
+          const mimeType = match[1];
+          const extFromMime = mimeType.split("/")[1] ?? "png";
+          const safeExt = extFromMime.replace(/[^a-z0-9]/gi, "") || "png";
+
+          const baseNameSource =
+            (msg.imageName ?? "").trim() || `imessage_image_${i}`;
+          const safeBaseName = baseNameSource
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]+/g, "-")
+            .replace(/^-+|-+$/g, "") || "imessage-image";
+          const timestamp = Date.now();
+          const fileName = `${safeBaseName}_${timestamp}.${safeExt}`;
+
+          throwIfCancelled();
+
+          const uploadRes = await fetch("/api/render/upload-message-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileName, dataUrl: trimmedUrl }),
+          });
+
+          const uploadData = await uploadRes.json().catch(() => ({}));
+          if (!uploadRes.ok || !uploadData.url) {
+            const errorMessage =
+              uploadData.error || "Failed to upload iMessage image to S3";
+            throw new Error(errorMessage);
+          }
+
+          msg.imageUrl = uploadData.url as string;
+
+          if (dedupeKey) {
+            uploadedImageUrls[dedupeKey] = msg.imageUrl;
           }
         }
 

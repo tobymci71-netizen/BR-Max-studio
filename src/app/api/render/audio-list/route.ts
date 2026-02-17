@@ -16,6 +16,7 @@ type CompositionMessage = {
   audioPath?: string;
   audio_path?: string;
   audio_type?: string;
+  type?: string;
 };
 
 type JobVoiceSettings = {
@@ -67,6 +68,9 @@ export async function GET(request: Request) {
     const items: AudioItem[] = [];
 
     messages.forEach((msg, index) => {
+      // Skip command-type messages so they don't show up in the audio review UI
+      if (msg?.type === "command") return;
+
       const url = msg?.audioPath || msg?.audio_path;
       if (!url || typeof url !== "string" || !url.trim()) return;
 
