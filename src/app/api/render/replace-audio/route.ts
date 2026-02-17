@@ -25,7 +25,7 @@ type CompositionProps = { messages?: CompositionMessage[] };
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized@9" }, { status: 401 });
   }
 
   try {

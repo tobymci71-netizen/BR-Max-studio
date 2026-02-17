@@ -15,7 +15,7 @@ const MAX_FILES_PER_REQUEST = 50;
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized@12" }, { status: 401 });
   }
 
   try {

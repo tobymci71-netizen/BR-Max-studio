@@ -10,7 +10,7 @@ import { DISK, RAM, TIMEOUT, REGION } from "../../../../../config.mjs";
 export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized@7" }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);

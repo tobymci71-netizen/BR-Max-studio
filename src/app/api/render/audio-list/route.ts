@@ -37,7 +37,7 @@ type CompositionProps = {
 export async function GET(request: Request) {
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized@1" }, { status: 401 });
   }
 
   const url = new URL(request.url);
