@@ -4,6 +4,7 @@ export const THEME_COMMAND_REGEX = />\s*change\s+theme\s+to\s+(light|dark)\s*</i
 export const CONVERSATION_COMMAND_REGEX = />\s*conversation\s+with\s+(.+?)\s*</i;
 export const ARROW_COMMAND_REGEX = />\s*(arrow\s*down|show\s*arrow)\s*</i;
 export const IMAGE_COMMAND_REGEX = /^\s*(?:me:|them:).*?>\s*image\s+(.+?)\s*</i;
+export const CHANGE_ME_VOICE_COMMAND_REGEX = />\s*change\s+me\s+voice\s+to\s+(.+?)\s*</i;
 
 type ApplyCommandsResult = {
   messages: Message[];
@@ -57,6 +58,7 @@ export const applyMessageCommands = (
   let pendingConversationStart = true;
   let conversationId = -1;
   let markNextWithArrow = false;
+  let currentMeVoiceId: string | undefined = undefined;
 
   for (const message of messages) {
     if (message.type === "command") {
@@ -83,6 +85,11 @@ export const applyMessageCommands = (
         markNextWithArrow = true;
       }
 
+      const changeVoiceMatch = trimmed.match(CHANGE_ME_VOICE_COMMAND_REGEX);
+      if (changeVoiceMatch) {
+        currentMeVoiceId = changeVoiceMatch[1].trim() || undefined;
+      }
+
       continue;
     }
 
@@ -100,8 +107,14 @@ export const applyMessageCommands = (
     const showArrow = Boolean(message.showArrow || markNextWithArrow);
     markNextWithArrow = false;
 
+    const voiceIdOverride =
+      message.sender === "me" && currentMeVoiceId
+        ? { voiceId: currentMeVoiceId }
+        : {};
+
     const nextMessage: Message = {
       ...message,
+      ...voiceIdOverride,
       startsConversation,
       conversationId,
       conversationRecipientName,

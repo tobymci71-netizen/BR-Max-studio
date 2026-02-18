@@ -323,6 +323,7 @@ export const CompositionProps = z.object({
       showArrow: z.boolean().default(false),
       sender: z.enum(["me", "them"]).default("them"),
       speaker: z.string().optional(),
+      voiceId: z.string().optional(),
       appearAt: z.number().nonnegative(),
       type: z
         .enum(["text", "promotion", "command", "image"])

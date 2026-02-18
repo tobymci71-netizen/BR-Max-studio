@@ -71,6 +71,7 @@ STRICT FORMAT RULES (DO NOT BREAK THEM):
   > change theme to light < - Used to change the theme of the chat from dark to light
   > Insert monetization < - Used to insert a monetization chat at that line
   > show arrow < - Used after the monetization to show a down arrow (comes before the message (to show the arrow on the next message))
+  > change me voice to VOICE_ID < - Used to change the sender's (me:) ElevenLabs voice ID from this point onward
 
 6. Preserve the chronological order EXACTLY.  
    Do not rearrange, remove, or add content.
@@ -2656,6 +2657,15 @@ export function ScriptStep() {
                       </td>
                       <td style={{ padding: "6px 6px" }}>
                         Creates an image upload slot for the referenced filename.
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <td style={{ padding: "6px 6px", whiteSpace: "nowrap" }}>
+                        <code>&gt; change me voice to VOICE_ID &lt;</code>
+                      </td>
+                      <td style={{ padding: "6px 6px" }}>
+                        Changes the sender&apos;s ElevenLabs voice ID from this point onward.
                       </td>
                     </tr>
                   </tbody>

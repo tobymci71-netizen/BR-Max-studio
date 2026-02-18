@@ -406,10 +406,14 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                 monetizationSettings.meVoiceId,
               ].filter((id) => Boolean(id && id.trim()))
             : [];
+        const messageVoiceOverrides = previewProps.messages
+          .map((m) => m.voiceId)
+          .filter((id): id is string => Boolean(id?.trim()));
         const voiceIds = [
           ...previewProps.voices
             .map((v) => v.voiceId)
             .filter((id) => id.trim()),
+          ...messageVoiceOverrides,
           ...monetizationVoiceIds,
         ];
 
@@ -553,10 +557,15 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
             return true;
           })
           .map(({ msg, index }) => {
-            const fallbackSpeaker = msg.sender === "me" ? "Me" : "Them";
-            const speakerName =
-              (msg.speaker ?? fallbackSpeaker).trim() || fallbackSpeaker;
-            const voiceId = resolveChatVoiceId(speakerName);
+            let voiceId: string;
+            if (msg.voiceId?.trim()) {
+              voiceId = msg.voiceId.trim();
+            } else {
+              const fallbackSpeaker = msg.sender === "me" ? "Me" : "Them";
+              const speakerName =
+                (msg.speaker ?? fallbackSpeaker).trim() || fallbackSpeaker;
+              voiceId = resolveChatVoiceId(speakerName);
+            }
 
             return {
               kind: "chat",
