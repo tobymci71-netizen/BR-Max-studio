@@ -507,6 +507,8 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
           voiceId: string;
           uploadIndex: number;
           uploadPrefix?: string;
+          previousText?: string;
+          nextText?: string;
         };
         type GeneratedAudioFile = {
           taskIndex: number;
@@ -628,8 +630,22 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
               }
             : null;
 
+        // For each chat task, find the previous and next message from the SAME sender
+        // (ignoring messages from other senders) to improve TTS prosody.
+        const chatTasksWithContext: AudioTask[] = chatTasks.map((task) => {
+          const sameSender = chatTasks
+            .filter((t) => t.sender === task.sender)
+            .sort((a, b) => a.index - b.index);
+          const pos = sameSender.findIndex((t) => t.index === task.index);
+          return {
+            ...task,
+            previousText: pos > 0 ? sameSender[pos - 1].text : undefined,
+            nextText: pos < sameSender.length - 1 ? sameSender[pos + 1].text : undefined,
+          };
+        });
+
         const allAudioTasks: AudioTask[] = [
-          ...chatTasks,
+          ...chatTasksWithContext,
           ...(monetizationStartTask ? [monetizationStartTask] : []),
           ...monetizationTasks,
           ...(rizzReplyTask ? [rizzReplyTask] : []),
@@ -661,6 +677,8 @@ export const useGenerateVideo = (): UseGenerateVideoReturn => {
                     text: task.text,
                     voiceId: task.voiceId,
                     apiKey: previewProps.elevenLabsApiKey!,
+                    previous_text: task.previousText,
+                    next_text: task.nextText,
                     enableSilenceTrimming: previewProps.enableSilenceTrimming ?? false,
                     silenceTrimmingType: previewProps.silenceTrimmingType ?? "full_audio",
                     voiceSettings: previewProps.voiceSettings,
