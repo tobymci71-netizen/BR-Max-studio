@@ -104,8 +104,7 @@ const MessageBubble: React.FC<{
   nextMessageAppearAt?: number;
   messageTextSizePx?: number;
 }> = ({ msg, frame, isMe, colors, isLastInGroup, enableAnimation, nextMessageAppearAt, messageTextSizePx }) => {
-  let fade = 1;
-  let y = 0;
+  let bubbleMaxHeight = 9999;
   const arrowOffset = Math.sin(frame / 10) * 4;
 
   const adjustedAppearAt = msg.appearAt;
@@ -114,11 +113,10 @@ const MessageBubble: React.FC<{
     const entrance = spring({
       frame: frame - adjustedAppearAt,
       fps: VIDEO_FPS,
-      config: { damping: 200, stiffness: 100 },
+      config: { damping: 60, stiffness: 40 },
     });
 
-    fade = interpolate(entrance, [0, 1], [0, 1]);
-    y = interpolate(entrance, [0, 1], [20, 0]);
+    bubbleMaxHeight = interpolate(entrance, [0, 1], [0, 600]);
   }
 
   const shouldShowArrow = msg.showArrow &&
@@ -154,8 +152,8 @@ const MessageBubble: React.FC<{
         style={{
           display: "inline-block",
           maxWidth: "65%",
-          opacity: fade,
-          transform: `translateY(${y}px)`,
+          maxHeight: bubbleMaxHeight,
+          overflow: "hidden",
         }}
       >
         <div
