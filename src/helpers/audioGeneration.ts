@@ -527,8 +527,8 @@ export async function generateAudioFile(params: GenerateParams): Promise<{
           text,
           model_id: modelId,
           output_format: outputFormat,
-          ...(previous_text ? { previous_text } : {}),
-          ...(next_text ? { next_text } : {}),
+          // ...(previous_text ? { previous_text } : {}),
+          // ...(next_text ? { next_text } : {}),
           voice_settings: {
             stability: normalizedVoiceSettings.stability,
             similarity_boost: normalizedVoiceSettings.similarity_boost,
