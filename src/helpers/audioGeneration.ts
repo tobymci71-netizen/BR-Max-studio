@@ -451,8 +451,8 @@ type GenerateParams = {
   outputFormat?: string; // e.g. "mp3_44100_128"
 
   // Context from same-sender adjacent messages for better prosody
-  previous_text?: string;
-  next_text?: string;
+  // previous_text?: string;
+  // next_text?: string;
 
   // NEW: silence trimming
   enableSilenceTrimming?: boolean;
@@ -472,8 +472,6 @@ export async function generateAudioFile(params: GenerateParams): Promise<{
     index,
     modelId = "eleven_multilingual_v2",
     outputFormat = "mp3_44100_128",
-    previous_text,
-    next_text,
     enableSilenceTrimming,
     silenceTrimmingType = "full_audio",
     voiceSettings,
